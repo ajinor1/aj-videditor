@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AJ Video Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d0d0d;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+        .app {
+            max-width: 1600px;
+            width: 100%;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0 20px;
+            border-bottom: 1px solid #2a2a2a;
+            margin-bottom: 20px;
+        }
+        header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 1px;
+        }
+        header .badge {
+            font-size: 12px;
+            color: #888;
+            background: #1e1e1e;
+            padding: 4px 14px;
+            border-radius: 20px;
+            border: 1px solid #333;
+        }
+
+        .top-section {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: stretch;
+        }
+
+        .canvas-wrapper {
+            flex: 1;
+            min-width: 0;
+            background: #111;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+            padding: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #canvas {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: #1a1a1a;
+            border-radius: 6px;
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        .properties {
+            width: 380px;
+            min-width: 320px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            background: #161616;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+            padding: 20px 20px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .control-group label {
+            font-size: 13px;
+            color: #aaa;
+            min-width: 60px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .control-group label.disabled {
+            color: #444;
+        }
+        .control-group textarea {
+            flex: 1;
+            min-width: 100px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background: #0d0d0d;
+            color: #fff;
+            font-size: 14px;
+            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+            outline: none;
+            transition: border 0.2s, opacity 0.2s;
+            resize: vertical;
+            min-height: 36px;
+            max-height: 120px;
+            line-height: 1.5;
+        }
+        .control-group textarea:focus {
+            border-color: #f5576c;
+        }
+        .control-group textarea:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .control-group input[type="range"] {
+            flex: 1;
+            min-width: 80px;
+            accent-color: #f5576c;
+            background: transparent;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .control-group input[type="range"]:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .control-group input[type="color"] {
+            width: 40px;
+            height: 34px;
+            padding: 2px;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background: transparent;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .control-group input[type="color"]:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .control-group input[type="number"] {
+            width: 72px;
+            padding: 4px 6px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background: #0d0d0d;
+            color: #fff;
+            font-size: 13px;
+            font-family: 'Consolas', monospace;
+            text-align: center;
+            outline: none;
+            transition: border 0.2s, opacity 0.2s;
+        }
+        .control-group input[type="number"]:focus {
+            border-color: #f5576c;
+        }
+        .control-group input[type="number"]:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .control-group input[type="number"]::-webkit-outer-spin-button,
+        .control-group input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .control-group input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        .coord-input {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: #0d0d0d;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 0 8px;
+            transition: opacity 0.2s;
+        }
+        .coord-input.disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .coord-input.disabled input {
+            cursor: not-allowed;
+        }
+        .coord-input span {
+            font-size: 13px;
+            color: #888;
+            font-weight: 600;
+            font-family: 'Consolas', monospace;
+        }
+        .coord-input input[type="number"] {
+            width: 54px;
+            border: none;
+            background: transparent;
+            padding: 4px 0;
+            color: #fff;
+            font-size: 13px;
+            font-family: 'Consolas', monospace;
+            text-align: center;
+            outline: none;
+        }
+        .coord-input input[type="number"]:focus {
+            border: none;
+            outline: none;
+        }
+        .coord-input input[type="number"]::-webkit-outer-spin-button,
+        .coord-input input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .coord-input input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        .btn-primary {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            color: #fff;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            white-space: nowrap;
+        }
+        .btn-primary:hover {
+            opacity: 0.85;
+        }
+        .btn-primary:active {
+            transform: scale(0.97);
+        }
+        .btn-danger {
+            background: #c0392b;
+        }
+        .btn-danger:hover {
+            background: #e74c3c;
+        }
+        .btn-sm {
+            padding: 4px 12px;
+            font-size: 12px;
+        }
+
+        .value {
+            font-size: 13px;
+            color: #888;
+            min-width: 44px;
+            text-align: right;
+            font-family: 'Consolas', monospace;
+            transition: color 0.2s;
+        }
+        .value.disabled {
+            color: #444;
+        }
+
+        .separator {
+            border: none;
+            border-top: 1px solid #2a2a2a;
+            margin: 4px 0;
+        }
+
+        .time-input-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .time-input-group input[type="number"] {
+            width: 72px;
+        }
+        .time-input-group .unit {
+            font-size: 12px;
+            color: #666;
+            font-family: 'Consolas', monospace;
+        }
+
+        /* ----- 下段：タイムライン ----- */
+        .bottom-section {
+            background: #161616;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-shrink: 0;
+        }
+
+        .timeline-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .timeline-controls .play-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 50%;
+            background: #2a2a2a;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .timeline-controls .play-btn:hover {
+            background: #3a3a3a;
+        }
+        .timeline-controls .play-btn.playing {
+            background: #f5576c;
+        }
+        .timeline-controls .play-btn.playing:hover {
+            background: #e04560;
+        }
+
+        .timeline-controls .time-display {
+            font-size: 13px;
+            font-family: 'Consolas', monospace;
+            color: #aaa;
+            letter-spacing: 0.5px;
+        }
+        .timeline-controls .time-display .sep {
+            color: #555;
+        }
+
+        .timeline-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        #timelineContainer {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+            background: #0d0d0d;
+            border-radius: 6px;
+            border: 1px solid #1a1a1a;
+            padding: 4px 0;
+            min-height: 220px;
+            max-height: 260px;
+            position: relative;
+        }
+        #timelineContainer::-webkit-scrollbar {
+            height: 6px;
+        }
+        #timelineContainer::-webkit-scrollbar-track {
+            background: #111;
+            border-radius: 3px;
+        }
+        #timelineContainer::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+
+        .timeline-ruler {
+            position: relative;
+            border-bottom: 1px solid #2a2a2a;
+            margin-bottom: 2px;
+            display: flex;
+            align-items: flex-end;
+        }
+        .timeline-ruler-inner {
+            position: relative;
+        }
+
+        .timeline-tick {
+            position: absolute;
+            bottom: 0;
+            height: 100%;
+            border-left: 1px solid #333;
+        }
+        .timeline-tick.major {
+            border-left-color: #555;
+        }
+        .timeline-tick.minor {
+            height: 50%;
+            border-left-color: #2a2a2a;
+        }
+        .timeline-tick-label {
+            position: absolute;
+            bottom: 2px;
+            left: 4px;
+            font-size: 9px;
+            color: #555;
+            font-family: 'Consolas', monospace;
+            white-space: nowrap;
+        }
+
+        .timeline-playhead {
+            position: absolute;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background: #f5576c;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .timeline-playhead::after {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: -4px;
+            width: 10px;
+            height: 10px;
+            background: #f5576c;
+            border-radius: 50%;
+        }
+
+        .timeline-track {
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #1a1a1a;
+            position: relative;
+            min-height: 32px;
+        }
+        .timeline-track:last-child {
+            border-bottom: none;
+        }
+
+        .timeline-track-label {
+            width: 80px;
+            min-width: 80px;
+            font-size: 10px;
+            color: #555;
+            font-family: 'Consolas', monospace;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            padding: 0 8px;
+            flex-shrink: 0;
+            text-align: right;
+            user-select: none;
+        }
+
+        .timeline-track-area {
+            position: relative;
+            height: 100%;
+            min-height: 28px;
+            cursor: pointer;
+        }
+
+        .timeline-clip {
+            position: absolute;
+            top: 2px;
+            height: calc(100% - 4px);
+            min-height: 24px;
+            border-radius: 3px;
+            cursor: grab;
+            transition: none;
+            display: flex;
+            align-items: center;
+            padding: 0 6px;
+            opacity: 0.8;
+            border: 1px solid rgba(255,255,255,0.1);
+            min-width: 4px;
+            overflow: hidden;
+            z-index: 2;
+            user-select: none;
+        }
+        .timeline-clip:hover {
+            opacity: 1;
+            border-color: rgba(255,255,255,0.3);
+        }
+        .timeline-clip.selected {
+            opacity: 1;
+            border-color: #fff;
+            box-shadow: 0 0 12px rgba(245, 87, 108, 0.4);
+            z-index: 3;
+        }
+        .timeline-clip.dragging {
+            opacity: 0.5;
+            z-index: 5;
+            cursor: grabbing;
+        }
+
+        .timeline-clip-label {
+            font-size: 10px;
+            color: #fff;
+            font-family: 'Segoe UI', sans-serif;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            font-weight: 500;
+            pointer-events: none;
+        }
+
+        @media (max-width: 1000px) {
+            .top-section {
+                flex-direction: column;
+            }
+            .properties {
+                width: 100%;
+                min-width: 0;
+                max-height: none;
+                flex-direction: row;
+                flex-wrap: wrap;
+                padding: 16px;
+                gap: 10px;
+            }
+            .control-group {
+                flex: 1;
+                min-width: 160px;
+            }
+            .canvas-wrapper {
+                width: 100%;
+            }
+            #timelineContainer {
+                min-height: 180px;
+                max-height: 220px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .control-group {
+                flex: 1 1 100%;
+                min-width: 0;
+            }
+            .properties {
+                padding: 12px;
+                gap: 8px;
+            }
+            .timeline-track-label {
+                width: 50px;
+                min-width: 50px;
+                font-size: 8px;
+            }
+            #timelineContainer {
+                min-height: 160px;
+                max-height: 200px;
+            }
+            .timeline-controls .time-display {
+                font-size: 11px;
+            }
+            .control-group label {
+                min-width: 50px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header>
+            <h1>AJ Video Editor</h1>
+            <span class="badge">alpha · local</span>
+        </header>
+
+        <div class="top-section">
+            <div class="canvas-wrapper">
+                <canvas id="canvas" width="1920" height="1080"></canvas>
+            </div>
+
+            <div class="properties">
+                <!-- Text -->
+                <div class="control-group">
+                    <label>Text</label>
+                    <textarea id="textInput" rows="1"></textarea>
+                </div>
+
+                <!-- Size -->
+                <div class="control-group">
+                    <label>Size</label>
+                    <input type="range" id="fontSize" min="16" max="200" value="48" />
+                    <span class="value" id="fontSizeLabel">--</span>
+                </div>
+
+                <!-- Color -->
+                <div class="control-group">
+                    <label>Color</label>
+                    <input type="color" id="colorPicker" value="#ffffff" />
+                </div>
+
+                <hr class="separator" />
+
+                <!-- X -->
+                <div class="control-group">
+                    <label>X</label>
+                    <input type="range" id="xPos" min="-500" max="500" value="0" step="1" />
+                    <div class="coord-input">
+                        <span>X:</span>
+                        <input type="number" id="xNumber" value="0" min="-8000" max="8000" />
+                    </div>
+                </div>
+
+                <!-- Y -->
+                <div class="control-group">
+                    <label>Y</label>
+                    <input type="range" id="yPos" min="-500" max="500" value="0" step="1" />
+                    <div class="coord-input">
+                        <span>Y:</span>
+                        <input type="number" id="yNumber" value="0" min="-8000" max="8000" />
+                    </div>
+                </div>
+
+                <hr class="separator" />
+
+                <!-- Start / Duration -->
+                <div class="control-group">
+                    <label>Start</label>
+                    <div class="time-input-group">
+                        <input type="number" id="startInput" value="0" min="0" max="600" />
+                        <span class="unit">fr</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Duration</label>
+                    <div class="time-input-group">
+                        <input type="number" id="durationInput" value="90" min="1" max="600" />
+                        <span class="unit">fr</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-section">
+            <div class="timeline-header">
+                <div class="timeline-controls">
+                    <button class="play-btn" id="playBtn">▶</button>
+                    <span class="time-display">
+                        <span id="currentTime">00:00.0</span>
+                        <span class="sep"> / </span>
+                        <span id="totalTime">00:20.0</span>
+                    </span>
+                </div>
+                <div class="timeline-actions">
+                    <button class="btn-primary btn-sm" id="addBtn">+ Add</button>
+                    <button class="btn-primary btn-sm btn-danger" id="deleteBtn">×</button>
+                </div>
+            </div>
+            <div id="timelineContainer"></div>
+        </div>
+    </div>
+
+    <script type="module" src="./dist/main.js"></script>
+</body>
+</html>

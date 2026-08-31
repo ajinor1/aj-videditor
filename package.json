@@ -1,0 +1,14 @@
+{
+  "name": "aj-videditor",
+  "version": "0.1.0",
+  "description": "AJ Video Editor - ブラウザで動く動画編集ツール",
+  "scripts": {
+    "dev": "concurrently \"tsc --watch\" \"npx serve .\"",
+    "build": "tsc",
+    "serve": "npx serve ."
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "concurrently": "^8.2.2"
+  }
+}

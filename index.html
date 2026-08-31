@@ -42,6 +42,10 @@
         .app {
             max-width: 1600px;
             width: 100%;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 40px);
+            max-height: calc(100vh - 40px);
         }
 
         header {
@@ -50,7 +54,7 @@
             align-items: center;
             padding: 12px 0 20px;
             border-bottom: 1px solid var(--border-color);
-            margin-bottom: 20px;
+            flex-shrink: 0;
         }
 
         .header-left {
@@ -93,7 +97,7 @@
             border: 1px solid var(--border-color);
         }
 
-        /* 設定オーバーレイ */
+        /* ----- 設定オーバーレイ（タブ分割） ----- */
         .settings-overlay {
             position: fixed;
             top: 0;
@@ -151,7 +155,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
             flex-shrink: 0;
         }
         .settings-header h2 {
@@ -173,12 +177,37 @@
             color: var(--text-primary);
         }
 
+        /* ★ タブメニュー ★ */
+        .settings-tabs {
+            display: flex;
+            gap: 4px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+            flex-shrink: 0;
+        }
+        .settings-tabs button {
+            padding: 8px 20px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+        }
+        .settings-tabs button:hover {
+            color: var(--text-primary);
+        }
+        .settings-tabs button.active {
+            color: var(--text-primary);
+            border-bottom-color: var(--accent);
+        }
+
         .settings-body {
             flex: 1;
             overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
             padding-right: 4px;
         }
         .settings-body::-webkit-scrollbar {
@@ -191,6 +220,16 @@
         .settings-body::-webkit-scrollbar-thumb {
             background: var(--border-color);
             border-radius: 4px;
+        }
+
+        /* ★ タブコンテンツ ★ */
+        .tab-content {
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .tab-content.active {
+            display: flex;
         }
 
         .setting-group {
@@ -248,6 +287,7 @@
             accent-color: var(--accent);
             cursor: pointer;
             flex-shrink: 0;
+            padding: 0;
         }
         .checkbox-group label {
             font-size: 14px;
@@ -279,48 +319,119 @@
         }
 
         /* ============================================================
-           メインコンテンツ
+           メインコンテンツ（既存スタイル）
            ============================================================ */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
         .top-section {
             display: flex;
-            gap: 20px;
-            margin-bottom: 20px;
-            align-items: stretch;
+            flex: 1;
+            min-height: 100px;
+            gap: 0;
+            position: relative;
         }
 
         .canvas-wrapper {
             flex: 1;
-            min-width: 0;
+            min-width: 200px;
             background: var(--bg-card);
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            padding: 16px;
+            border-radius: 0;
             display: flex;
             justify-content: center;
             align-items: center;
+            overflow: hidden;
         }
         #canvas {
             width: 100%;
             aspect-ratio: 16 / 9;
-            background: #1a1a1a;
+            background: #00000000;
             border-radius: 6px;
             display: block;
             image-rendering: pixelated;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: scale-down;
+        }
+
+        .resize-handle-horizontal {
+            width: 6px;
+            cursor: col-resize;
+            background: var(--border-color);
+            flex-shrink: 0;
+            transition: background 0.2s;
+            position: relative;
+            z-index: 5;
+        }
+        .resize-handle-horizontal:hover,
+        .resize-handle-horizontal.active {
+            background: var(--accent);
+        }
+        .resize-handle-horizontal::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2px;
+            height: 30px;
+            background: var(--text-secondary);
+            border-radius: 2px;
+            opacity: 0.5;
+        }
+        .resize-handle-horizontal:hover::before,
+        .resize-handle-horizontal.active::before {
+            opacity: 1;
+            background: var(--text-primary);
         }
 
         .properties {
             width: 380px;
-            min-width: 320px;
+            min-width: 200px;
+            max-width: 600px;
             flex-shrink: 0;
             display: flex;
             flex-direction: column;
             gap: 14px;
             background: var(--bg-secondary);
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
             padding: 20px 20px;
-            max-height: 650px;
             overflow-y: auto;
+            border-left: 1px solid var(--border-color);
+        }
+
+        .resize-handle-vertical {
+            height: 6px;
+            cursor: row-resize;
+            background: var(--border-color);
+            flex-shrink: 0;
+            transition: background 0.2s;
+            position: relative;
+            z-index: 5;
+        }
+        .resize-handle-vertical:hover,
+        .resize-handle-vertical.active {
+            background: var(--accent);
+        }
+        .resize-handle-vertical::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 30px;
+            height: 2px;
+            background: var(--text-secondary);
+            border-radius: 2px;
+            opacity: 0.5;
+        }
+        .resize-handle-vertical:hover::before,
+        .resize-handle-vertical.active::before {
+            opacity: 1;
+            background: var(--text-primary);
         }
 
         .control-group {
@@ -593,16 +704,17 @@
             margin: 4px 12px;
         }
 
-        /* ============================================================
-           タイムライン
-           ============================================================ */
+        /* ----- タイムライン ----- */
         .bottom-section {
             background: var(--bg-secondary);
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
+            border-radius: 0;
+            border: none;
+            border-top: 1px solid var(--border-color);
             padding: 16px 20px;
             display: flex;
             flex-direction: column;
+            min-height: 100px;
+            flex-shrink: 0;
         }
 
         .timeline-header {
@@ -668,9 +780,10 @@
             border: 1px solid var(--border-color);
             padding: 4px 0;
             position: relative;
-            min-height: 100px;
-            max-height: 540px;
-            transition: height 0.2s ease;
+            min-height: 80px;
+            flex: 1;
+            max-height: 500px;
+            transition: height 0.15s ease;
         }
         #timelineContainer::-webkit-scrollbar {
             height: 6px;
@@ -816,17 +929,40 @@
             pointer-events: none;
         }
 
-        /* ★ レイヤー追加ボタン用スタイル ★ */
         .timeline-add-layer {
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             border-top: 1px solid var(--border-color);
+            padding-left: 80px;
+            padding-right: 20px;
             background: var(--bg-primary);
             transition: all 0.2s;
+            flex-shrink: 0;
         }
         .timeline-add-layer:hover {
             background: var(--bg-secondary);
         }
         .timeline-add-layer .btn-primary {
+            width: 100%;
+            max-width: 200px;
             transition: all 0.2s;
+        }
+        #addLayerInputContainer {
+            display: none;
+            margin-left: 10px;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+        #addLayerInputContainer input[type="number"] {
+            width: 60px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
         }
         #addLayerInputContainer input[type="number"]::-webkit-outer-spin-button,
         #addLayerInputContainer input[type="number"]::-webkit-inner-spin-button {
@@ -836,15 +972,27 @@
         #addLayerInputContainer input[type="number"] {
             -moz-appearance: textfield;
         }
+        #addLayerInputContainer .hint {
+            font-size: 12px;
+            color: #666;
+        }
 
         @media (max-width: 1000px) {
+            .app {
+                height: auto;
+                max-height: none;
+            }
             .top-section {
                 flex-direction: column;
+                min-height: 300px;
             }
             .properties {
                 width: 100%;
                 min-width: 0;
-                max-height: none;
+                max-width: none;
+                max-height: 300px;
+                border-left: none;
+                border-top: 1px solid var(--border-color);
                 flex-direction: row;
                 flex-wrap: wrap;
                 padding: 16px;
@@ -856,13 +1004,35 @@
             }
             .canvas-wrapper {
                 width: 100%;
+                min-height: 200px;
+            }
+            .resize-handle-horizontal {
+                width: 100%;
+                height: 6px;
+                cursor: row-resize;
+            }
+            .resize-handle-horizontal::before {
+                width: 30px;
+                height: 2px;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+            }
+            .bottom-section {
+                min-height: 150px;
             }
             #timelineContainer {
-                max-height: 400px;
+                max-height: 300px;
             }
             .settings-window {
                 width: 92vw;
                 padding: 20px 24px;
+            }
+            .resize-handle-vertical {
+                display: none;
+            }
+            .timeline-add-layer {
+                padding-left: 50px;
             }
         }
 
@@ -874,6 +1044,7 @@
             .properties {
                 padding: 12px;
                 gap: 8px;
+                max-height: 250px;
             }
             .timeline-track-label {
                 width: 50px;
@@ -881,8 +1052,8 @@
                 font-size: 8px;
             }
             #timelineContainer {
-                max-height: 300px;
-                min-height: 80px;
+                max-height: 200px;
+                min-height: 60px;
             }
             .timeline-controls .time-display {
                 font-size: 11px;
@@ -901,6 +1072,10 @@
             .setting-group .input-group input[type="number"] {
                 width: 60px;
             }
+            .timeline-add-layer {
+                padding-left: 50px;
+                height: 28px;
+            }
             .timeline-add-layer .btn-primary {
                 font-size: 11px;
                 padding: 4px 10px;
@@ -911,6 +1086,13 @@
             }
             #addLayerInputContainer input[type="number"] {
                 width: 50px;
+            }
+            .resize-handle-horizontal {
+                height: 4px;
+            }
+            .settings-tabs button {
+                font-size: 12px;
+                padding: 6px 14px;
             }
         }
     </style>
@@ -925,209 +1107,254 @@
             <span class="badge">alpha · local</span>
         </header>
 
+        <!-- ★ 設定オーバーレイ（タブ分割） ★ -->
         <div class="settings-overlay" id="settingsOverlay">
             <div class="settings-window" id="settingsWindow">
                 <div class="settings-header">
                     <h2>⚙ Settings</h2>
                     <button class="settings-close" id="settingsClose">✕</button>
                 </div>
-                <div class="settings-body">
-                    <!-- Theme -->
-                    <div class="setting-group">
-                        <label for="themeSelect">Theme</label>
-                        <select id="themeSelect">
-                            <option value="white" selected>ホワイト（シンプル）</option>
-                            <option value="white-red">レッド（明）</option>
-                            <option value="white-blue">ブルー（明）</option>
-                            <option value="white-green">グリーン（明）</option>
-                            <option value="white-yellow">イエロー（明）</option>
-                            <option value="white-purple">パープル（明）</option>
-                            <option value="black">ブラック（シンプル）</option>
-                            <option value="black-red">レッド（暗）</option>
-                            <option value="black-blue">ブルー（暗）</option>
-                            <option value="black-green">グリーン（暗）</option>
-                            <option value="black-yellow">イエロー（暗）</option>
-                            <option value="black-purple">パープル（暗）</option>
-                        </select>
-                    </div>
 
-                    <!-- Overlap Prevention -->
-                    <div class="setting-group">
-                        <div class="checkbox-group">
-                            <input type="checkbox" id="overlapToggle" checked />
-                            <label for="overlapToggle">アイテムの重なり防止</label>
+                <!-- ★ タブメニュー ★ -->
+                <div class="settings-tabs" id="settingsTabs">
+                    <button class="active" data-tab="project">Project</button>
+                    <button data-tab="editor">Editor</button>
+                </div>
+
+                <div class="settings-body">
+                    <!-- ★ Project タブ ★ -->
+                    <div class="tab-content active" id="tabProject">
+                        <!-- Number of Layers -->
+                        <div class="setting-group">
+                            <label for="layerCountInput">Number of Layers</label>
+                            <div class="input-group">
+                                <input type="number" id="layerCountInput" value="10" min="1" max="99" />
+                                <span class="hint">(1〜99)</span>
+                                <button class="btn-primary btn-sm" id="applyLayerCountBtn">Apply</button>
+                            </div>
+                        </div>
+                    
+                        <!-- ★ 背景色 ★ -->
+                        <div class="setting-group">
+                            <label for="bgColorPicker">Background Color</label>
+                            <input type="color" id="bgColorPicker" value="#000000"
+                                style="width:60px;height:40px;padding:2px;border:1px solid var(--border-color);border-radius:6px;background:transparent;cursor:pointer;" />
+                        </div>
+                    
+                        <!-- ★ 解像度 ★ -->
+                        <div class="setting-group">
+                            <label for="resolutionSelect">Resolution</label>
+                            <select id="resolutionSelect">
+                                <option value="1920x1080">1920 x 1080 (横)</option>
+                                <option value="1280x720">1280 x 720 (横)</option>
+                                <option value="1080x1920">1080 x 1920 (縦)</option>
+                                <option value="720x1280">720 x 1280 (縦)</option>
+                            </select>
+                        </div>
+                    
+                        <!-- ★ FPS ★ -->
+                        <div class="setting-group">
+                            <label for="fpsSelect">FPS</label>
+                            <select id="fpsSelect">
+                                <option value="15">15 fps</option>
+                                <option value="20">20 fps</option>
+                                <option value="24">24 fps</option>
+                                <option value="30">30 fps</option>
+                                <option value="48">48 fps</option>
+                                <option value="60"selected>60 fps</option>
+                                <option value="120">120 fps</option>
+                            </select>
                         </div>
                     </div>
 
-                    <!-- Number of Layers -->
-                    <div class="setting-group">
-                        <label for="layerCountInput">Number of Layers</label>
-                        <div class="input-group">
-                            <input type="number" id="layerCountInput" value="10" min="1" max="99" />
-                            <span class="hint">(1〜99)</span>
-                            <button class="btn-primary btn-sm" id="applyLayerCountBtn">Apply</button>
+                    <!-- ★ Editor タブ ★ -->
+                    <div class="tab-content" id="tabEditor">
+                        <div class="setting-group">
+                            <label for="themeSelect">Theme</label>
+                            <select id="themeSelect">
+                                <option value="white" selected>ホワイト（シンプル）</option>
+                                <option value="white-red">レッド（明）</option>
+                                <option value="white-blue">ブルー（明）</option>
+                                <option value="white-green">グリーン（明）</option>
+                                <option value="white-yellow">イエロー（明）</option>
+                                <option value="white-purple">パープル（明）</option>
+                                <option value="black">ブラック（シンプル）</option>
+                                <option value="black-red">レッド（暗）</option>
+                                <option value="black-blue">ブルー（暗）</option>
+                                <option value="black-green">グリーン（暗）</option>
+                                <option value="black-yellow">イエロー（暗）</option>
+                                <option value="black-purple">パープル（暗）</option>
+                            </select>
+                        </div>
+
+                        <div class="setting-group">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="overlapToggle" checked />
+                                <label for="overlapToggle">アイテムの重なり防止</label>
+                            </div>
                         </div>
                     </div>
                 </div>
+
                 <div class="settings-footer">
                     <button class="btn-close" id="settingsCloseBtn">Close</button>
                 </div>
             </div>
         </div>
 
-        <div class="top-section">
-            <div class="canvas-wrapper">
-                <canvas id="canvas" width="1920" height="1080"></canvas>
-            </div>
-
-            <div class="properties" id="propertiesPanel">
-                <!-- Type -->
-                <div class="control-group">
-                    <label>Type</label>
-                    <span id="typeDisplay" style="font-size:13px;color:var(--text-secondary);">-</span>
+        <!-- ============================================================
+        メインコンテンツ
+        ============================================================ -->
+        <div class="main-content">
+            <div class="top-section" id="topSection">
+                <div class="canvas-wrapper" id="canvasWrapper">
+                    <canvas id="canvas" width="1920" height="1080"></canvas>
                 </div>
 
-                <!-- テキスト用 -->
-                <div id="textProperties">
-                    <div class="control-group">
-                        <label>Text</label>
-                        <textarea id="textInput" rows="1"></textarea>
-                    </div>
-                    <div class="control-group">
-                        <label>Font</label>
-                        <select id="fontSelect">
-                            <option value='"Hiragino Sans", "Microsoft YaHei", sans-serif'>デフォルト</option>
-                            <option value='"Hina Mincho", serif'>Hina Mincho</option>
-                            <option value='"Hachi Maru Pop", serif'>Hachi Maru Pop</option>
-                            <option value='"Noto Sans JP", sans-serif'>Noto Sans JP</option>
-                            <option value='"Noto Serif JP", serif'>Noto Serif JP</option>
-                            <option value='"Yuji Boku", serif'>Yuji Boku</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label>Size</label>
-                        <input type="range" id="fontSize" min="0" max="100" value="50" />
-                        <span class="value" id="fontSizeLabel">--</span>
-                    </div>
-                    <div class="control-group">
-                        <label>Color</label>
-                        <input type="color" id="colorPicker" value="#ffffff" />
-                    </div>
-                </div>
+                <div class="resize-handle-horizontal" id="resizeHandleHorizontal"></div>
 
-                <!-- 図形用 -->
-                <div id="shapeProperties" style="display:none;">
+                <div class="properties" id="propertiesPanel">
                     <div class="control-group">
-                        <label>Shape</label>
-                        <select id="shapeTypeSelect">
-                            <option value="rectangle">四角形</option>
-                            <option value="triangle">三角形</option>
-                            <option value="circle">円</option>
-                            <option value="pie">扇形</option>
-                            <option value="arrow">矢印</option>
-                        </select>
+                        <label>Type</label>
+                        <span id="typeDisplay" style="font-size:13px;color:var(--text-secondary);">-</span>
                     </div>
-                    <div class="control-group">
-                        <label>Fill</label>
-                        <input type="color" id="fillColorPicker" value="#ffffff" />
-                    </div>
-                    <div class="control-group">
-                        <label>Stroke</label>
-                        <input type="color" id="strokeColorPicker" value="#ffffff" />
-                    </div>
-                    <div class="control-group">
-                        <label>Stroke W</label>
-                        <input type="range" id="strokeWidthSlider" min="0" max="100" value="0" step="1" />
-                        <span class="value" id="strokeWidthLabel">0px</span>
-                    </div>
-                    <div class="control-group">
-                        <label>Width</label>
-                        <input type="range" id="shapeWidthSlider" min="0" max="100" value="100" step="1" />
-                        <span class="value" id="shapeWidthLabel">100px</span>
-                    </div>
-                    <div class="control-group">
-                        <label>Height</label>
-                        <input type="range" id="shapeHeightSlider" min="0" max="100" value="100" step="1" />
-                        <span class="value" id="shapeHeightLabel">100px</span>
-                    </div>
-                </div>
 
-                <hr class="separator" />
-
-                <!-- X -->
-                <div class="control-group">
-                    <label>X</label>
-                    <input type="range" id="xPos" min="-500" max="500" value="0" step="1" />
-                    <div class="coord-input">
-                        <span>X:</span>
-                        <input type="number" id="xNumber" value="0" min="-8000" max="8000" />
-                    </div>
-                </div>
-
-                <!-- Y -->
-                <div class="control-group">
-                    <label>Y</label>
-                    <input type="range" id="yPos" min="-500" max="500" value="0" step="1" />
-                    <div class="coord-input">
-                        <span>Y:</span>
-                        <input type="number" id="yNumber" value="0" min="-8000" max="8000" />
-                    </div>
-                </div>
-
-                <!-- Rotation -->
-                <div class="control-group">
-                    <label>Rotation</label>
-                    <input type="range" id="rotationSlider" min="-180" max="180" value="0" step="1" />
-                    <div class="coord-input">
-                        <span>R:</span>
-                        <input type="number" id="rotationNumber" value="0" min="-1440" max="1440" step="1" />
-                        <span style="font-size:12px;color:#666;">°</span>
-                    </div>
-                </div>
-
-                <hr class="separator" />
-
-                <!-- Start / Duration -->
-                <div class="control-group">
-                    <label>Start</label>
-                    <div class="time-input-group">
-                        <input type="number" id="startInput" value="0" min="0" max="600" />
-                        <span class="unit">fr</span>
-                    </div>
-                </div>
-                <div class="control-group">
-                    <label>Duration</label>
-                    <div class="time-input-group">
-                        <input type="number" id="durationInput" value="90" min="1" max="600" />
-                        <span class="unit">fr</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="bottom-section">
-            <div class="timeline-header">
-                <div class="timeline-controls">
-                    <button class="play-btn" id="playBtn">▶</button>
-                    <span class="time-display">
-                        <span id="currentTime">00:00.0</span>
-                        <span class="sep"> / </span>
-                        <span id="totalTime">00:20.0</span>
-                    </span>
-                </div>
-                <div class="timeline-actions">
-                    <div class="dropdown" id="addDropdown">
-                        <button class="btn-primary btn-sm" id="addBtn">+ Add ▼</button>
-                        <div class="dropdown-menu" id="addDropdownMenu">
-                            <button data-type="text">📝 テキスト</button>
-                            <div class="divider"></div>
-                            <button data-type="shape">⬜ 図形</button>
+                    <div id="textProperties">
+                        <div class="control-group">
+                            <label>Text</label>
+                            <textarea id="textInput" rows="1"></textarea>
+                        </div>
+                        <div class="control-group">
+                            <label>Font</label>
+                            <select id="fontSelect">
+                                <option value='"Hiragino Sans", "Microsoft YaHei", sans-serif'>デフォルト</option>
+                                <option value='"Hina Mincho", serif'>Hina Mincho</option>
+                                <option value='"Hachi Maru Pop", serif'>Hachi Maru Pop</option>
+                                <option value='"Noto Sans JP", sans-serif'>Noto Sans JP</option>
+                                <option value='"Noto Serif JP", serif'>Noto Serif JP</option>
+                                <option value='"Yuji Boku", serif'>Yuji Boku</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>Size</label>
+                            <input type="range" id="fontSize" min="0" max="100" value="50" />
+                            <span class="value" id="fontSizeLabel">--</span>
+                        </div>
+                        <div class="control-group">
+                            <label>Color</label>
+                            <input type="color" id="colorPicker" value="#ffffff" />
                         </div>
                     </div>
-                    <button class="btn-primary btn-sm btn-danger" id="deleteBtn">×</button>
+
+                    <div id="shapeProperties" style="display:none;">
+                        <div class="control-group">
+                            <label>Shape</label>
+                            <select id="shapeTypeSelect">
+                                <option value="rectangle">四角形</option>
+                                <option value="triangle">三角形</option>
+                                <option value="circle">円</option>
+                                <option value="pie">扇形</option>
+                                <option value="arrow">矢印</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>Fill</label>
+                            <input type="color" id="fillColorPicker" value="#ffffff" />
+                        </div>
+                        <div class="control-group">
+                            <label>Stroke</label>
+                            <input type="color" id="strokeColorPicker" value="#ffffff" />
+                        </div>
+                        <div class="control-group">
+                            <label>Stroke W</label>
+                            <input type="range" id="strokeWidthSlider" min="0" max="100" value="0" step="1" />
+                            <span class="value" id="strokeWidthLabel">0px</span>
+                        </div>
+                        <div class="control-group">
+                            <label>Width</label>
+                            <input type="range" id="shapeWidthSlider" min="0" max="100" value="100" step="1" />
+                            <span class="value" id="shapeWidthLabel">100px</span>
+                        </div>
+                        <div class="control-group">
+                            <label>Height</label>
+                            <input type="range" id="shapeHeightSlider" min="0" max="100" value="100" step="1" />
+                            <span class="value" id="shapeHeightLabel">100px</span>
+                        </div>
+                    </div>
+
+                    <hr class="separator" />
+
+                    <div class="control-group">
+                        <label>X</label>
+                        <input type="range" id="xPos" min="-500" max="500" value="0" step="1" />
+                        <div class="coord-input">
+                            <span>X:</span>
+                            <input type="number" id="xNumber" value="0" min="-8000" max="8000" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Y</label>
+                        <input type="range" id="yPos" min="-500" max="500" value="0" step="1" />
+                        <div class="coord-input">
+                            <span>Y:</span>
+                            <input type="number" id="yNumber" value="0" min="-8000" max="8000" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Rotation</label>
+                        <input type="range" id="rotationSlider" min="-180" max="180" value="0" step="1" />
+                        <div class="coord-input">
+                            <span>R:</span>
+                            <input type="number" id="rotationNumber" value="0" min="-1440" max="1440" step="1" />
+                            <span style="font-size:12px;color:#666;">°</span>
+                        </div>
+                    </div>
+
+                    <hr class="separator" />
+
+                    <div class="control-group">
+                        <label>Start</label>
+                        <div class="time-input-group">
+                            <input type="number" id="startInput" value="0" min="0" max="600" />
+                            <span class="unit">fr</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Duration</label>
+                        <div class="time-input-group">
+                            <input type="number" id="durationInput" value="90" min="1" max="600" />
+                            <span class="unit">fr</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div id="timelineContainer"></div>
+
+            <div class="resize-handle-vertical" id="resizeHandleVertical"></div>
+
+            <div class="bottom-section" id="bottomSection">
+                <div class="timeline-header">
+                    <div class="timeline-controls">
+                        <button class="play-btn" id="playBtn">▶</button>
+                        <span class="time-display">
+                            <span id="currentTime">00:00.0</span>
+                            <span class="sep"> / </span>
+                            <span id="totalTime">00:20.0</span>
+                        </span>
+                    </div>
+                    <div class="timeline-actions">
+                        <div class="dropdown" id="addDropdown">
+                            <button class="btn-primary btn-sm" id="addBtn">+ Add ▼</button>
+                            <div class="dropdown-menu" id="addDropdownMenu">
+                                <button data-type="text">📝 テキスト</button>
+                                <div class="divider"></div>
+                                <button data-type="shape">⬜ 図形</button>
+                            </div>
+                        </div>
+                        <button class="btn-primary btn-sm btn-danger" id="deleteBtn">×</button>
+                    </div>
+                </div>
+                <div id="timelineContainer"></div>
+            </div>
         </div>
     </div>
 

@@ -1,12 +1,9 @@
 // ============================================================
 // AJ Video Editor - エントリーポイント
-// フェーズ10: レイヤー数可変（上限99 / 初期10 / 上から01 / 追加ボタン付き）
+// フェーズ12: プレビュー上でクリップをドラッグ移動
 // ============================================================
 // -------- 定数 --------
-const FPS = 30;
 const TIMELINE_DURATION = 20;
-const TOTAL_FRAMES = TIMELINE_DURATION * FPS;
-const DEFAULT_CLIP_DURATION = 3 * FPS;
 const DEFAULT_FONT = '"Hiragino Sans", "Microsoft YaHei", sans-serif';
 const TIMELINE_HEIGHT = 32;
 const TIMELINE_PADDING_LEFT = 80;
@@ -14,7 +11,29 @@ const TIMELINE_PADDING_RIGHT = 20;
 const TIMELINE_HEADER_HEIGHT = 28;
 const MAX_LAYERS = 99;
 const DEFAULT_LAYER_COUNT = 10;
-// -------- ★ スライダー拡張段階定義 ★ --------
+// -------- 設定 --------
+const CONFIG = {
+    preventOverlap: true,
+    theme: 'white',
+    bgColor: '#000000',
+    layerCount: DEFAULT_LAYER_COUNT,
+    resolution: { width: 1920, height: 1080 },
+    fps: 60,
+};
+// -------- configを参照する定数 --------
+const totalFrames = TIMELINE_DURATION * CONFIG.fps;
+const DEFAULT_CLIP_DURATION = 3 * CONFIG.fps;
+// -------- クリップタイプごとの色 --------
+const CLIP_COLORS = {
+    text: '#0077ff', // 青
+    shape: '#ff0055', // ピンク
+    // 今後追加: video: '#...', image: '#...'
+};
+// 色の取得関数（後で拡張しやすいように）
+function getClipColor(type) {
+    return CLIP_COLORS[type] || '#888888'; // 未定義の場合はグレー
+}
+// -------- スライダー拡張段階定義 --------
 const SLIDER_STAGES = {
     coord: [500, 1000, 2000, 4000, 8000],
     rotation: [180, 360, 720, 1440],
@@ -22,7 +41,7 @@ const SLIDER_STAGES = {
     stroke: [100, 200, 400, 800, 1600, 3200],
     fontSize: [100, 200, 400, 800, 1600, 3200],
 };
-// -------- ★ 数値入力の設定 ★ --------
+// -------- 数値入力の設定 --------
 const NUMBER_CONFIGS = {
     x: { min: -8000, max: 8000, default: 0, stages: SLIDER_STAGES.coord },
     y: { min: -8000, max: 8000, default: 0, stages: SLIDER_STAGES.coord },
@@ -34,14 +53,7 @@ const NUMBER_CONFIGS = {
     start: { min: 0, max: 600, default: 0, stages: null },
     duration: { min: 1, max: 600, default: 90, stages: null },
 };
-// -------- ★ 設定（レイヤー数追加） ★ --------
-const CONFIG = {
-    preventOverlap: true,
-    theme: 'white',
-    bgColor: '#000000',
-    layerCount: DEFAULT_LAYER_COUNT,
-};
-// -------- ★ 汎用関数 ★ --------
+// -------- 汎用関数 --------
 function getSliderMax(value, stages) {
     const abs = Math.abs(value);
     for (const stage of stages) {
@@ -64,7 +76,7 @@ function updateSliderRangePositive(slider, value, stages, isDragging) {
     slider.min = '0';
     slider.max = String(max);
 }
-// -------- ★ 共通数値入力処理 ★ --------
+// -------- 共通数値入力処理 --------
 function setupNumberInput(input, slider, config) {
     input.addEventListener('click', () => input.select());
     input.addEventListener('focus', () => input.select());
@@ -92,7 +104,7 @@ function commitNumberInput(input, slider, config) {
     config.onCommit(val);
     input.blur();
 }
-// -------- ★ スライダードラッグ制御（共通化） ★ --------
+// -------- スライダードラッグ制御（共通化） --------
 function setupSliderDrag(slider, onStart, onEnd) {
     const start = () => { onStart(); };
     const end = () => { onEnd(); };
@@ -161,11 +173,20 @@ const themeSelect = document.getElementById('themeSelect');
 const overlapToggle = document.getElementById('overlapToggle');
 const layerCountInput = document.getElementById('layerCountInput');
 const applyLayerCountBtn = document.getElementById('applyLayerCountBtn');
+const bgColorPicker = document.getElementById('bgColorPicker');
+const resolutionSelect = document.getElementById('resolutionSelect');
+const fpsSelect = document.getElementById('fpsSelect');
+// タブ用DOM
+const settingsTabs = document.getElementById('settingsTabs');
+const tabProject = document.getElementById('tabProject');
+const tabEditor = document.getElementById('tabEditor');
+// リサイズ用DOM
+const resizeHandleHorizontal = document.getElementById('resizeHandleHorizontal');
+const resizeHandleVertical = document.getElementById('resizeHandleVertical');
+const canvasWrapper = document.getElementById('canvasWrapper');
+const propertiesPanel = document.getElementById('propertiesPanel');
+const bottomSection = document.getElementById('bottomSection');
 // -------- キャンバスサイズ --------
-const CANVAS_W = 1920;
-const CANVAS_H = 1080;
-const CX = CANVAS_W / 2;
-const CY = CANVAS_H / 2;
 const MAX_COORD = 8000;
 const MAX_ROTATION = 1440;
 // -------- 状態 --------
@@ -192,6 +213,22 @@ let dragStartMouseY = 0;
 let dragStartFrame = 0;
 let dragStartLayer = 0;
 let dragClipElement = null;
+// プレビュードラッグ用
+let isDraggingPreview = false;
+let dragPreviewClipId = null;
+let dragPreviewStartX = 0;
+let dragPreviewStartY = 0;
+let dragPreviewOffsetX = 0;
+let dragPreviewOffsetY = 0;
+// リサイズ用状態
+let isResizingHorizontal = false;
+let isResizingVertical = false;
+let resizeStartX = 0;
+let resizeStartY = 0;
+let resizeStartWidth = 0;
+let resizeStartHeight = 0;
+const MIN_PANEL_WIDTH = 200;
+const MIN_TIMELINE_HEIGHT = 80;
 let isDropdownOpen = false;
 function toggleDropdown() {
     isDropdownOpen = !isDropdownOpen;
@@ -200,6 +237,26 @@ function toggleDropdown() {
 function closeDropdown() {
     isDropdownOpen = false;
     addDropdownMenu.classList.remove('active');
+}
+// -------- タブ切り替え --------
+function setupSettingsTabs() {
+    const tabs = settingsTabs.querySelectorAll('button');
+    const contents = {
+        project: tabProject,
+        editor: tabEditor,
+    };
+    tabs.forEach(button => {
+        button.addEventListener('click', () => {
+            // タブのアクティブ状態を切り替え
+            tabs.forEach(b => b.classList.remove('active'));
+            button.classList.add('active');
+            // コンテンツの表示を切り替え
+            const tabName = button.dataset.tab;
+            Object.entries(contents).forEach(([key, content]) => {
+                content.classList.toggle('active', key === tabName);
+            });
+        });
+    });
 }
 // -------- ユーティリティ --------
 function generateId() {
@@ -252,12 +309,11 @@ function getClipsAtFrame(frame) {
         return frame >= clip.startFrame && frame < clip.startFrame + clip.duration;
     });
 }
-// -------- ★ レイヤー数変更関数 ★ --------
+// -------- レイヤー数変更 --------
 function setLayerCount(newCount) {
     newCount = Math.max(1, Math.min(MAX_LAYERS, newCount));
     if (newCount === currentLayerCount)
         return;
-    // 現在のレイヤー数より減らす場合、はみ出たクリップを最前面レイヤーに移動
     if (newCount < currentLayerCount) {
         for (const clip of clips) {
             if (clip.layerId > newCount) {
@@ -271,7 +327,7 @@ function setLayerCount(newCount) {
     drawTimeline();
     drawPreview();
 }
-// -------- 図形描画関数 --------
+// -------- 図形描画 --------
 function drawShape(ctx, clip) {
     const { shapeType, fillColor, strokeColor, strokeWidth, width, height, rotation } = clip;
     if (!shapeType || !width || !height)
@@ -391,42 +447,47 @@ function applyTheme(themeName) {
 // -------- プレビュー描画 --------
 function drawPreview() {
     ctx.fillStyle = CONFIG.bgColor;
-    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    const { width, height } = CONFIG.resolution;
+    const cx = width / 2;
+    const cy = height / 2;
+    ctx.fillRect(0, 0, width, height);
+    // グリッド線は width, height を使う
+    // 原点は cx, cy を使う
     ctx.strokeStyle = 'rgba(255,255,255,0.03)';
     ctx.lineWidth = 1;
-    for (let i = 0; i <= CANVAS_W; i += 40) {
+    for (let i = 0; i <= CONFIG.resolution.width; i += 40) {
         ctx.beginPath();
         ctx.moveTo(i, 0);
-        ctx.lineTo(i, CANVAS_H);
+        ctx.lineTo(i, CONFIG.resolution.height);
         ctx.stroke();
     }
-    for (let i = 0; i <= CANVAS_H; i += 40) {
+    for (let i = 0; i <= CONFIG.resolution.height; i += 40) {
         ctx.beginPath();
         ctx.moveTo(0, i);
-        ctx.lineTo(CANVAS_W, i);
+        ctx.lineTo(CONFIG.resolution.width, i);
         ctx.stroke();
     }
     ctx.strokeStyle = 'rgba(255,255,255,0.08)';
     ctx.lineWidth = 1;
     ctx.setLineDash([6, 8]);
     ctx.beginPath();
-    ctx.moveTo(CX, 0);
-    ctx.lineTo(CX, CANVAS_H);
+    ctx.moveTo(CONFIG.resolution.width / 2, 0);
+    ctx.lineTo(CONFIG.resolution.width / 2, CONFIG.resolution.height);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(0, CY);
-    ctx.lineTo(CANVAS_W, CY);
+    ctx.moveTo(0, CONFIG.resolution.height / 2);
+    ctx.lineTo(CONFIG.resolution.width, CONFIG.resolution.height / 2);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(255,50,50,0.5)';
     ctx.beginPath();
-    ctx.arc(CX, CY, 4, 0, Math.PI * 2);
+    ctx.arc(CONFIG.resolution.width / 2, CONFIG.resolution.height / 2, 4, 0, Math.PI * 2);
     ctx.fill();
     const visibleClips = getClipsAtFrame(currentFrame);
     visibleClips.sort((a, b) => a.layerId - b.layerId);
     for (const clip of visibleClips) {
-        const drawX = CX + clip.x;
-        const drawY = CY + clip.y;
+        const drawX = CONFIG.resolution.width / 2 + clip.x;
+        const drawY = CONFIG.resolution.height / 2 + clip.y;
         if (clip.type === 'text') {
             const lines = clip.text?.split('\n') || [''];
             const lineHeight = (clip.fontSize || 48) * 1.2;
@@ -485,7 +546,111 @@ function drawPreview() {
         }
     }
 }
-// -------- ★ タイムライン描画（レイヤー追加ボタン付き） ★ --------
+// -------- プレビュードラッグ --------
+function getClipAtPosition(cx, cy) {
+    const visibleClips = getClipsAtFrame(currentFrame);
+    for (let i = visibleClips.length - 1; i >= 0; i--) {
+        const clip = visibleClips[i];
+        const drawX = CONFIG.resolution.width / 2 + clip.x;
+        const drawY = CONFIG.resolution.height / 2 + clip.y;
+        let width = 100;
+        let height = 60;
+        if (clip.type === 'text') {
+            const lines = clip.text?.split('\n') || [''];
+            const fontSize = clip.fontSize || 48;
+            const lineHeight = fontSize * 1.2;
+            height = lines.length * lineHeight;
+            let maxWidth = 0;
+            ctx.font = `${fontSize}px ${clip.fontFamily || DEFAULT_FONT}`;
+            for (const line of lines) {
+                const metrics = ctx.measureText(line);
+                if (metrics.width > maxWidth)
+                    maxWidth = metrics.width;
+            }
+            width = maxWidth || 100;
+            width += 20;
+            height += 20;
+        }
+        else if (clip.type === 'shape') {
+            width = clip.width || 100;
+            height = clip.height || 100;
+        }
+        const halfW = width / 2;
+        const halfH = height / 2;
+        if (cx >= drawX - halfW && cx <= drawX + halfW &&
+            cy >= drawY - halfH && cy <= drawY + halfH) {
+            return clip;
+        }
+    }
+    return null;
+}
+function setupPreviewDrag() {
+    let isPointerDown = false;
+    let pointerDownClip = null;
+    let pointerStartX = 0;
+    let pointerStartY = 0;
+    let clipStartX = 0;
+    let clipStartY = 0;
+    const onPointerDown = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const canvasX = (e.clientX - rect.left) * scaleX;
+        const canvasY = (e.clientY - rect.top) * scaleY;
+        const clip = getClipAtPosition(canvasX, canvasY);
+        if (!clip)
+            return;
+        selectedId = clip.id;
+        syncUI();
+        isPointerDown = true;
+        pointerDownClip = clip;
+        pointerStartX = e.clientX;
+        pointerStartY = e.clientY;
+        clipStartX = clip.x;
+        clipStartY = clip.y;
+        canvas.style.cursor = 'grabbing';
+        document.addEventListener('mousemove', onPointerMove);
+        document.addEventListener('mouseup', onPointerUp);
+    };
+    const onPointerMove = (e) => {
+        if (!isPointerDown || !pointerDownClip)
+            return;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const deltaX = (e.clientX - pointerStartX) * scaleX;
+        const deltaY = (e.clientY - pointerStartY) * scaleY;
+        if (!isDraggingPreview && (Math.abs(deltaX) < 3 && Math.abs(deltaY) < 3))
+            return;
+        isDraggingPreview = true;
+        const newX = Math.round(clipStartX + deltaX);
+        const newY = Math.round(clipStartY + deltaY);
+        pointerDownClip.x = newX;
+        pointerDownClip.y = newY;
+        if (selectedId === pointerDownClip.id) {
+            xNumber.value = String(newX);
+            xSlider.value = String(newX);
+            yNumber.value = String(newY);
+            ySlider.value = String(newY);
+        }
+        drawPreview();
+    };
+    const onPointerUp = (e) => {
+        if (isDraggingPreview && pointerDownClip) {
+            if (selectedId === pointerDownClip.id) {
+                syncUI();
+            }
+        }
+        isPointerDown = false;
+        isDraggingPreview = false;
+        pointerDownClip = null;
+        canvas.style.cursor = 'default';
+        document.removeEventListener('mousemove', onPointerMove);
+        document.removeEventListener('mouseup', onPointerUp);
+    };
+    canvas.addEventListener('mousedown', onPointerDown);
+}
+// -------- タイムライン描画 --------
 function drawTimeline() {
     const containerWidth = timelineContainer.clientWidth - 4;
     const usableWidth = containerWidth - TIMELINE_PADDING_LEFT - TIMELINE_PADDING_RIGHT;
@@ -493,7 +658,6 @@ function drawTimeline() {
     const totalTrackHeight = currentLayerCount * TIMELINE_HEIGHT;
     const totalHeight = TIMELINE_HEADER_HEIGHT + totalTrackHeight;
     let html = '';
-    // --- 時間目盛り ---
     html += `<div class="timeline-ruler" style="height:${TIMELINE_HEADER_HEIGHT}px; padding-left:${TIMELINE_PADDING_LEFT}px; padding-right:${TIMELINE_PADDING_RIGHT}px;">`;
     html += `<div class="timeline-ruler-inner" style="position:relative; height:100%; width:100%;">`;
     for (let s = 0; s <= TIMELINE_DURATION; s++) {
@@ -505,10 +669,9 @@ function drawTimeline() {
         }
         html += `</div>`;
     }
-    const headX = (currentFrame / FPS) * pixelsPerSecond;
+    const headX = (currentFrame / CONFIG.fps) * pixelsPerSecond;
     html += `<div class="timeline-playhead" style="left:${headX}px;"></div>`;
     html += `</div></div>`;
-    // --- レイヤートラック（上から01） ---
     for (let layerId = 1; layerId <= currentLayerCount; layerId++) {
         const layerLabel = String(layerId).padStart(2, '0');
         html += `<div class="timeline-track" style="height:${TIMELINE_HEIGHT}px;">`;
@@ -516,11 +679,10 @@ function drawTimeline() {
         html += `<div class="timeline-track-area" style="position:relative; flex:1; height:100%;">`;
         const layerClips = clips.filter(c => c.layerId === layerId);
         for (const clip of layerClips) {
-            const left = (clip.startFrame / FPS) * pixelsPerSecond;
-            const width = (clip.duration / FPS) * pixelsPerSecond;
+            const left = (clip.startFrame / CONFIG.fps) * pixelsPerSecond;
+            const width = (clip.duration / CONFIG.fps) * pixelsPerSecond;
             const isSelected = clip.id === selectedId;
-            const colors = ['#f5576c', '#f9ca24', '#4ecdc4', '#45b7d1', '#a29bfe'];
-            const color = colors[(layerId - 1) % colors.length];
+            const color = getClipColor(clip.type);
             const isDragging = isDraggingClip && dragClipId === clip.id;
             const opacity = isDragging ? '0.5' : '0.8';
             const label = clip.type === 'text'
@@ -534,18 +696,17 @@ function drawTimeline() {
         }
         html += `</div></div>`;
     }
-    // --- ★ レイヤー追加ボタン（一番下） ★ ---
-    html += `<div class="timeline-add-layer" style="height:${TIMELINE_HEIGHT}px; display:flex; align-items:center; justify-content:center; border-top:1px solid var(--border-color); padding-left:${TIMELINE_PADDING_LEFT}px; padding-right:${TIMELINE_PADDING_RIGHT}px;">`;
+    html += `<div class="timeline-add-layer">`;
     html += `<button class="btn-primary btn-sm" id="addLayerBtn" style="width:100%; max-width:200px;">+ Add Layer</button>`;
-    html += `<div id="addLayerInputContainer" style="display:none; margin-left:10px; align-items:center; gap:8px; flex:1;">`;
-    html += `<input type="number" id="addLayerCountInput" value="1" min="1" max="99" style="width:60px; padding:4px 8px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary);" />`;
-    html += `<span style="font-size:12px; color:#666;">layers</span>`;
+    html += `<div id="addLayerInputContainer">`;
+    html += `<input type="number" id="addLayerCountInput" value="1" min="1" max="99" />`;
+    html += `<span class="hint">layers</span>`;
     html += `<button class="btn-primary btn-sm" id="confirmAddLayerBtn">Add</button>`;
     html += `<button class="btn-primary btn-sm btn-danger" id="cancelAddLayerBtn">Cancel</button>`;
     html += `</div></div>`;
-    timelineContainer.style.height = `${Math.min(totalHeight + 8 + TIMELINE_HEIGHT, 540)}px`;
+    const containerHeight = timelineContainer.clientHeight || Math.min(totalHeight + 8 + 32, 500);
+    timelineContainer.style.height = `${Math.max(80, containerHeight)}px`;
     timelineContainer.innerHTML = html;
-    // --- イベント登録 ---
     document.querySelectorAll('.timeline-clip').forEach(el => {
         el.addEventListener('click', (e) => {
             if (isDraggingClip)
@@ -580,7 +741,6 @@ function drawTimeline() {
             startSeek(e);
         });
     }
-    // --- ★ レイヤー追加ボタンイベント ★ ---
     const addLayerBtn = document.getElementById('addLayerBtn');
     const addLayerInputContainer = document.getElementById('addLayerInputContainer');
     const addLayerCountInput = document.getElementById('addLayerCountInput');
@@ -633,7 +793,7 @@ function drawTimeline() {
         });
     }
     currentTimeDisplay.textContent = formatTime(currentFrame);
-    totalTimeDisplay.textContent = formatTime(TOTAL_FRAMES);
+    totalTimeDisplay.textContent = formatTime(TIMELINE_DURATION * CONFIG.fps);
 }
 // -------- タイムライン操作 --------
 function startClipDrag(e, clipId) {
@@ -669,14 +829,16 @@ function onClipDragMove(e) {
     const containerWidth = container.clientWidth - 4;
     const usableWidth = containerWidth - TIMELINE_PADDING_LEFT - TIMELINE_PADDING_RIGHT;
     const pixelsPerSecond = usableWidth / TIMELINE_DURATION;
+    // 横方向のドラッグでフレームを変更
     const deltaX = (e.clientX - dragStartMouseX) / pixelsPerSecond;
-    let newStartFrame = Math.round(dragStartFrame + deltaX * FPS);
-    const maxStart = TOTAL_FRAMES - clip.duration;
+    let newStartFrame = Math.round(dragStartFrame + deltaX * CONFIG.fps);
+    const maxStart = TIMELINE_DURATION * CONFIG.fps - clip.duration;
     newStartFrame = Math.max(0, Math.min(maxStart, newStartFrame));
     clip.startFrame = newStartFrame;
+    // 縦方向のドラッグでレイヤーを変更
     const trackY = e.clientY - rect.top - TIMELINE_HEADER_HEIGHT;
     const layerIndex = Math.floor(trackY / TIMELINE_HEIGHT);
-    let newLayerId = currentLayerCount - layerIndex;
+    let newLayerId = layerIndex + 1;
     newLayerId = Math.max(1, Math.min(currentLayerCount, newLayerId));
     const oldLayer = clip.layerId;
     clip.layerId = newLayerId;
@@ -719,7 +881,7 @@ function getFrameFromMouseEvent(e) {
     const pixelsPerSecond = usableWidth / TIMELINE_DURATION;
     const x = e.clientX - rect.left - TIMELINE_PADDING_LEFT;
     const seconds = Math.max(0, Math.min(TIMELINE_DURATION, x / pixelsPerSecond));
-    return Math.round(seconds * FPS);
+    return Math.round(seconds * CONFIG.fps);
 }
 function startSeek(e) {
     const target = e.target;
@@ -760,15 +922,15 @@ function togglePlay() {
 function startPlayback() {
     if (isPlaying)
         return;
-    if (currentFrame >= TOTAL_FRAMES)
+    if (currentFrame >= TIMELINE_DURATION * CONFIG.fps)
         currentFrame = 0;
     isPlaying = true;
     playBtn.textContent = '⏸';
     playBtn.classList.add('playing');
     playInterval = window.setInterval(() => {
         currentFrame++;
-        if (currentFrame >= TOTAL_FRAMES) {
-            currentFrame = TOTAL_FRAMES;
+        if (currentFrame >= TIMELINE_DURATION * CONFIG.fps) {
+            currentFrame = TIMELINE_DURATION * CONFIG.fps;
             stopPlayback();
             drawTimeline();
             drawPreview();
@@ -776,7 +938,7 @@ function startPlayback() {
         }
         drawTimeline();
         drawPreview();
-    }, 1000 / FPS);
+    }, 1000 / CONFIG.fps);
 }
 function stopPlayback() {
     isPlaying = false;
@@ -810,11 +972,11 @@ function resolveOverlap(clip, ignoreId) {
     while (isOverlapping(clip, ignoreId) && attempts < 100) {
         attempts++;
         clip.startFrame++;
-        if (clip.startFrame + clip.duration > TOTAL_FRAMES) {
-            clip.startFrame = TOTAL_FRAMES - clip.duration;
+        if (clip.startFrame + clip.duration > TIMELINE_DURATION * CONFIG.fps) {
+            clip.startFrame = TIMELINE_DURATION * CONFIG.fps - clip.duration;
             if (clip.startFrame < 0) {
                 clip.startFrame = 0;
-                clip.duration = TOTAL_FRAMES;
+                clip.duration = TIMELINE_DURATION * CONFIG.fps;
             }
             break;
         }
@@ -843,7 +1005,7 @@ function findAvailableLayer(startFrame, duration) {
 }
 // -------- 時間表示 --------
 function formatTime(frame) {
-    const seconds = frame / FPS;
+    const seconds = frame / CONFIG.fps;
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     const tenths = Math.floor((seconds % 1) * 10);
@@ -1015,7 +1177,7 @@ function updateStart() {
     let val = parseInt(startInput.value, 10);
     if (isNaN(val) || val < 0)
         val = 0;
-    const maxStart = TOTAL_FRAMES - selected.duration;
+    const maxStart = TIMELINE_DURATION * CONFIG.fps - selected.duration;
     if (val > maxStart)
         val = maxStart;
     const oldStart = selected.startFrame;
@@ -1035,7 +1197,7 @@ function updateDuration() {
     let val = parseInt(durationInput.value, 10);
     if (isNaN(val) || val < 1)
         val = 1;
-    const maxStart = TOTAL_FRAMES - val;
+    const maxStart = TIMELINE_DURATION * CONFIG.fps - val;
     if (selected.startFrame > maxStart)
         selected.startFrame = Math.max(0, maxStart);
     const oldDuration = selected.duration;
@@ -1136,7 +1298,7 @@ function setupAllNumberInputs() {
                 const selected = getSelected();
                 if (!selected)
                     return;
-                const maxStart = TOTAL_FRAMES - val;
+                const maxStart = TIMELINE_DURATION * CONFIG.fps - val;
                 if (selected.startFrame > maxStart)
                     selected.startFrame = Math.max(0, maxStart);
                 const oldDuration = selected.duration;
@@ -1162,6 +1324,72 @@ function setupAllNumberInputs() {
             onCommit: cfg.onCommit
         });
     }
+}
+// -------- パネルリサイズ機能 --------
+function setupResizeHandles() {
+    resizeHandleHorizontal.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        isResizingHorizontal = true;
+        resizeStartX = e.clientX;
+        resizeStartWidth = canvasWrapper.getBoundingClientRect().width;
+        resizeHandleHorizontal.classList.add('active');
+        document.addEventListener('mousemove', onHorizontalResize);
+        document.addEventListener('mouseup', onHorizontalResizeEnd);
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+    });
+    resizeHandleVertical.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        isResizingVertical = true;
+        resizeStartY = e.clientY;
+        resizeStartHeight = bottomSection.getBoundingClientRect().height;
+        resizeHandleVertical.classList.add('active');
+        document.addEventListener('mousemove', onVerticalResize);
+        document.addEventListener('mouseup', onVerticalResizeEnd);
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+    });
+}
+function onHorizontalResize(e) {
+    if (!isResizingHorizontal)
+        return;
+    const delta = e.clientX - resizeStartX;
+    const newWidth = resizeStartWidth + delta;
+    const parentWidth = canvasWrapper.parentElement.getBoundingClientRect().width - 6;
+    const maxWidth = parentWidth - MIN_PANEL_WIDTH;
+    if (newWidth >= MIN_PANEL_WIDTH && newWidth <= maxWidth) {
+        canvasWrapper.style.flex = 'none';
+        canvasWrapper.style.width = `${newWidth}px`;
+    }
+}
+function onHorizontalResizeEnd(e) {
+    isResizingHorizontal = false;
+    resizeHandleHorizontal.classList.remove('active');
+    document.removeEventListener('mousemove', onHorizontalResize);
+    document.removeEventListener('mouseup', onHorizontalResizeEnd);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    drawPreview();
+}
+function onVerticalResize(e) {
+    if (!isResizingVertical)
+        return;
+    const topSectionHeight = document.querySelector('.top-section').getBoundingClientRect().height;
+    const container = document.querySelector('.main-content');
+    const totalHeight = container.getBoundingClientRect().height - 50;
+    const delta = -(e.clientY - resizeStartY);
+    const newHeight = Math.min(Math.max(resizeStartHeight + delta, MIN_TIMELINE_HEIGHT), totalHeight * 0.6);
+    bottomSection.style.height = `${newHeight}px`;
+    bottomSection.style.minHeight = `${MIN_TIMELINE_HEIGHT}px`;
+    drawTimeline();
+}
+function onVerticalResizeEnd(e) {
+    isResizingVertical = false;
+    resizeHandleVertical.classList.remove('active');
+    document.removeEventListener('mousemove', onVerticalResize);
+    document.removeEventListener('mouseup', onVerticalResizeEnd);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
 }
 // -------- キーボードショートカット --------
 function setupKeyboardShortcuts() {
@@ -1191,6 +1419,7 @@ settingsClose.addEventListener('click', closeSettings);
 settingsCloseBtn.addEventListener('click', closeSettings);
 settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay)
     closeSettings(); });
+// -------- 設定UIのイベント登録 --------
 themeSelect.addEventListener('change', () => applyTheme(themeSelect.value));
 overlapToggle.addEventListener('change', () => { CONFIG.preventOverlap = overlapToggle.checked; });
 applyLayerCountBtn.addEventListener('click', () => {
@@ -1208,6 +1437,28 @@ layerCountInput.addEventListener('keydown', (e) => {
         }
     }
 });
+// 背景色変更
+bgColorPicker.addEventListener('input', () => {
+    CONFIG.bgColor = bgColorPicker.value;
+    drawPreview();
+});
+// 解像度変更
+resolutionSelect.addEventListener('change', () => {
+    const [w, h] = resolutionSelect.value.split('x').map(Number);
+    CONFIG.resolution = { width: w, height: h };
+    canvas.width = w;
+    canvas.height = h;
+    drawPreview();
+    drawTimeline();
+});
+// FPS変更
+fpsSelect.addEventListener('change', () => {
+    CONFIG.fps = Number(fpsSelect.value);
+    drawPreview();
+    drawTimeline();
+});
+// -------- タブ切り替え設定 --------
+setupSettingsTabs();
 // -------- ドロップダウンメニュー --------
 addBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1297,6 +1548,8 @@ setupSliderDrag(fontSizeSlider, () => { isDraggingFontSize = true; }, () => {
 fontSelect.addEventListener('change', updateSelected);
 setupAllNumberInputs();
 setupKeyboardShortcuts();
+setupResizeHandles();
+setupPreviewDrag();
 // -------- 設定切り替え用関数 --------
 function setOverlapPrevention(enabled) {
     CONFIG.preventOverlap = enabled;
@@ -1318,10 +1571,10 @@ window.__editor = {
     drawPreview,
     drawTimeline,
     setFrame: (frame) => {
-        currentFrame = Math.max(0, Math.min(TOTAL_FRAMES, frame));
+        currentFrame = Math.max(0, Math.min(TIMELINE_DURATION * CONFIG.fps, frame));
         drawPreview();
         drawTimeline();
-        console.log(`Frame set to ${currentFrame} (${(currentFrame / FPS).toFixed(2)}s)`);
+        console.log(`Frame set to ${currentFrame} (${(currentFrame / CONFIG.fps).toFixed(2)}s)`);
     },
     getFrame: () => currentFrame,
     getClips: () => clips,
@@ -1335,15 +1588,21 @@ window.__editor = {
     config: CONFIG,
     applyTheme,
     themes: THEMES,
+    // デバッグ用
+    //isOverlapping,      // 重なり判定関数を公開
+    //resolveOverlap,     // 重なり解消関数を公開
+    //findAvailableLayer, // 空きレイヤー探索関数を公開
 };
 // -------- 初期化 --------
 function init() {
     selectedId = null;
-    totalTimeDisplay.textContent = formatTime(TOTAL_FRAMES);
+    totalTimeDisplay.textContent = formatTime(TIMELINE_DURATION * CONFIG.fps);
     currentLayerCount = CONFIG.layerCount;
     layerCountInput.value = String(CONFIG.layerCount);
     applyTheme(CONFIG.theme);
     syncUI();
+    bottomSection.style.height = '250px';
+    bottomSection.style.minHeight = `${MIN_TIMELINE_HEIGHT}px`;
 }
 init();
 // -------- リサイズ --------

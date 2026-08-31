@@ -1,7 +1,6 @@
 // ============================================================
 // AJ Video Editor - エントリーポイント
-// フェーズ5: クリップのドラッグ移動 + Start/Duration編集
-// 重なり防止オプション付き（デフォルト: ON）
+// フェーズ6: フォント選択機能 + 設定UI（テーマ切り替え）
 // ============================================================
 // -------- 定数 --------
 const FPS = 30;
@@ -9,14 +8,35 @@ const LAYER_COUNT = 5;
 const TIMELINE_DURATION = 20; // 秒
 const TOTAL_FRAMES = TIMELINE_DURATION * FPS; // 600フレーム
 const DEFAULT_CLIP_DURATION = 3 * FPS; // 90フレーム
-// -------- ★ 設定（デフォルト: true = 重なり防止ON） ★ --------
+// -------- ★ デフォルトフォント ★ --------
+const DEFAULT_FONT = '"Hiragino Sans", "Microsoft YaHei", sans-serif';
+// -------- 設定（デフォルト: true = 重なり防止ON） --------
 const CONFIG = {
-    preventOverlap: true, // true: 同じレイヤーで重ならないようにする / false: 自由に重ねられる
+    preventOverlap: true,
+    theme: 'white', // デフォルトテーマ
+};
+// -------- ★ テーマ定義 ★ --------
+const THEMES = {
+    // 白系（明）
+    'white': { bg: '#f5f5f5', secondary: '#e8e8e8', card: '#ffffff', text: '#222222', textSecondary: '#666666', border: '#d0d0d0', accent: '#f5576c' },
+    'white-red': { bg: '#fff5f5', secondary: '#f5e8e8', card: '#ffffff', text: '#331111', textSecondary: '#884444', border: '#e0c8c8', accent: '#e74c3c' },
+    'white-blue': { bg: '#f0f5ff', secondary: '#e8edf5', card: '#ffffff', text: '#111833', textSecondary: '#445588', border: '#c8d8e8', accent: '#3498db' },
+    'white-green': { bg: '#f0fff5', secondary: '#e8f5ed', card: '#ffffff', text: '#113311', textSecondary: '#448844', border: '#c8e0d0', accent: '#2ecc71' },
+    'white-yellow': { bg: '#fffdf0', secondary: '#f5f0e8', card: '#ffffff', text: '#332b11', textSecondary: '#887744', border: '#e8e0c8', accent: '#f1c40f' },
+    'white-purple': { bg: '#f8f0ff', secondary: '#f0e8f5', card: '#ffffff', text: '#1f1133', textSecondary: '#664488', border: '#d8c8e8', accent: '#9b59b6' },
+    // 黒系（暗）
+    'black': { bg: '#0d0d0d', secondary: '#161616', card: '#111111', text: '#e0e0e0', textSecondary: '#888888', border: '#2a2a2a', accent: '#f5576c' },
+    'black-red': { bg: '#1a0a0a', secondary: '#221111', card: '#1a0d0d', text: '#e8d0d0', textSecondary: '#aa8888', border: '#3a2020', accent: '#e74c3c' },
+    'black-blue': { bg: '#0a0d1a', secondary: '#111822', card: '#0d111a', text: '#d0d8e8', textSecondary: '#8899aa', border: '#202a3a', accent: '#3498db' },
+    'black-green': { bg: '#0a1a0d', secondary: '#112211', card: '#0d1a0d', text: '#d0e8d0', textSecondary: '#88aa88', border: '#203a2a', accent: '#2ecc71' },
+    'black-yellow': { bg: '#1a180a', secondary: '#222211', card: '#1a1a0d', text: '#e8e0d0', textSecondary: '#aa9966', border: '#3a3820', accent: '#f1c40f' },
+    'black-purple': { bg: '#120a1a', secondary: '#1f1122', card: '#1a0d1a', text: '#e0d0e8', textSecondary: '#9988aa', border: '#2a203a', accent: '#9b59b6' },
 };
 // -------- DOM要素 --------
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const textInput = document.getElementById('textInput');
+const fontSelect = document.getElementById('fontSelect');
 const fontSizeSlider = document.getElementById('fontSize');
 const fontSizeLabel = document.getElementById('fontSizeLabel');
 const colorPicker = document.getElementById('colorPicker');
@@ -32,6 +52,14 @@ const timelineContainer = document.getElementById('timelineContainer');
 const playBtn = document.getElementById('playBtn');
 const currentTimeDisplay = document.getElementById('currentTime');
 const totalTimeDisplay = document.getElementById('totalTime');
+// -------- ★ 設定UI DOM ★ --------
+const settingsToggle = document.getElementById('settingsToggle');
+const settingsOverlay = document.getElementById('settingsOverlay');
+const settingsClose = document.getElementById('settingsClose');
+const settingsCloseBtn = document.getElementById('settingsCloseBtn');
+const settingsWindow = document.getElementById('settingsWindow');
+const themeSelect = document.getElementById('themeSelect');
+const overlapToggle = document.getElementById('overlapToggle');
 // -------- キャンバスサイズ --------
 const CANVAS_W = 1920;
 const CANVAS_H = 1080;
@@ -58,7 +86,6 @@ let dragStartMouseY = 0;
 let dragStartFrame = 0;
 let dragStartLayer = 0;
 let dragClipElement = null;
-let dragGhost = null;
 // -------- タイムライン用定数 --------
 const TIMELINE_HEIGHT = 32;
 const TIMELINE_PADDING_LEFT = 80;
@@ -99,6 +126,7 @@ function getSelected() {
 function setPropertiesEnabled(enabled) {
     const inputs = [
         textInput,
+        fontSelect,
         fontSizeSlider,
         colorPicker,
         xSlider,
@@ -185,6 +213,24 @@ function applyOverlapPrevention(clip, ignoreId) {
         return;
     resolveOverlap(clip, ignoreId);
 }
+// -------- ★ 空いてるレイヤーを探す ★ --------
+function findAvailableLayer(startFrame, duration) {
+    for (let layerId = 1; layerId <= LAYER_COUNT; layerId++) {
+        const hasOverlap = clips.some(clip => {
+            if (clip.layerId !== layerId)
+                return false;
+            const aStart = startFrame;
+            const aEnd = startFrame + duration;
+            const bStart = clip.startFrame;
+            const bEnd = clip.startFrame + clip.duration;
+            return aStart < bEnd && bStart < aEnd;
+        });
+        if (!hasOverlap) {
+            return layerId;
+        }
+    }
+    return null;
+}
 // -------- 時間表示フォーマット --------
 function formatTime(frame) {
     const seconds = frame / FPS;
@@ -192,6 +238,22 @@ function formatTime(frame) {
     const secs = Math.floor(seconds % 60);
     const tenths = Math.floor((seconds % 1) * 10);
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${tenths}`;
+}
+// -------- ★ テーマ適用関数 ★ --------
+function applyTheme(themeName) {
+    const theme = THEMES[themeName];
+    if (!theme)
+        return;
+    const root = document.documentElement;
+    root.style.setProperty('--bg-primary', theme.bg);
+    root.style.setProperty('--bg-secondary', theme.secondary);
+    root.style.setProperty('--bg-card', theme.card);
+    root.style.setProperty('--text-primary', theme.text);
+    root.style.setProperty('--text-secondary', theme.textSecondary);
+    root.style.setProperty('--border-color', theme.border);
+    root.style.setProperty('--accent', theme.accent);
+    CONFIG.theme = themeName;
+    themeSelect.value = themeName;
 }
 // -------- プレビュー描画 --------
 function drawPreview() {
@@ -236,7 +298,7 @@ function drawPreview() {
         const lineHeight = clip.fontSize * 1.2;
         const totalHeight = lines.length * lineHeight;
         const startY = drawY - totalHeight / 2 + lineHeight / 2;
-        ctx.font = `${clip.fontSize}px "Hiragino Sans", "Microsoft YaHei", sans-serif`;
+        ctx.font = `${clip.fontSize}px ${clip.fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         for (let i = 0; i < lines.length; i++) {
@@ -282,7 +344,7 @@ function drawTimeline() {
     html += `<div class="timeline-playhead" style="left:${headX}px;"></div>`;
     html += `</div></div>`;
     // --- レイヤートラック ---
-    for (let layerId = LAYER_COUNT; layerId >= 1; layerId--) {
+    for (let layerId = 1; layerId <= LAYER_COUNT; layerId++) {
         const layerLabel = String(layerId).padStart(2, '0');
         html += `<div class="timeline-track" style="height:${TIMELINE_HEIGHT}px;">`;
         html += `<div class="timeline-track-label">LAYER ${layerLabel}</div>`;
@@ -292,7 +354,7 @@ function drawTimeline() {
             const left = (clip.startFrame / FPS) * pixelsPerSecond;
             const width = (clip.duration / FPS) * pixelsPerSecond;
             const isSelected = clip.id === selectedId;
-            const colors = ['#4ecdc4', '#45b7d1', '#f9ca24', '#ff6b6b', '#a29bfe'];
+            const colors = ['#f5576c', '#f9ca24', '#4ecdc4', '#45b7d1', '#a29bfe'];
             const color = colors[(layerId - 1) % colors.length];
             const isDragging = isDraggingClip && dragClipId === clip.id;
             const opacity = isDragging ? '0.5' : '0.8';
@@ -346,7 +408,7 @@ function drawTimeline() {
     currentTimeDisplay.textContent = formatTime(currentFrame);
     totalTimeDisplay.textContent = formatTime(TOTAL_FRAMES);
 }
-// -------- クリップドラッグ機能（重なり防止付き） --------
+// -------- クリップドラッグ機能 --------
 function startClipDrag(e, clipId) {
     if (isDraggingClip)
         return;
@@ -381,30 +443,22 @@ function onClipDragMove(e) {
     const containerWidth = container.clientWidth - 4;
     const usableWidth = containerWidth - TIMELINE_PADDING_LEFT - TIMELINE_PADDING_RIGHT;
     const pixelsPerSecond = usableWidth / TIMELINE_DURATION;
-    // ---- 時間方向の移動 ----
     const deltaX = (e.clientX - dragStartMouseX) / pixelsPerSecond;
     let newStartFrame = Math.round(dragStartFrame + deltaX * FPS);
     const maxStart = TOTAL_FRAMES - clip.duration;
     newStartFrame = Math.max(0, Math.min(maxStart, newStartFrame));
-    // ---- レイヤー方向の移動（スナップ） ----
+    clip.startFrame = newStartFrame;
     const trackY = e.clientY - rect.top - TIMELINE_HEADER_HEIGHT;
     const layerIndex = Math.floor(trackY / TIMELINE_HEIGHT);
-    let newLayerId = LAYER_COUNT - layerIndex;
+    let newLayerId = layerIndex + 1;
     newLayerId = Math.max(1, Math.min(LAYER_COUNT, newLayerId));
-    // ---- 変更を適用 ----
-    const oldStart = clip.startFrame;
     const oldLayer = clip.layerId;
-    clip.startFrame = newStartFrame;
     clip.layerId = newLayerId;
-    // ---- ★ 重なり防止（有効な場合） ★ ----
     if (CONFIG.preventOverlap) {
         if (isOverlapping(clip, clip.id)) {
-            clip.startFrame = oldStart;
             clip.layerId = oldLayer;
-            resolveOverlap(clip, clip.id);
         }
     }
-    // ---- UI更新 ----
     drawTimeline();
     drawPreview();
     if (selectedId === dragClipId) {
@@ -522,6 +576,7 @@ function syncUI() {
     const hasClips = clips.length > 0;
     if (selected && hasClips) {
         textInput.value = selected.text;
+        fontSelect.value = selected.fontFamily;
         fontSizeSlider.value = String(selected.fontSize);
         fontSizeLabel.textContent = `${selected.fontSize}px`;
         colorPicker.value = selected.color;
@@ -538,8 +593,7 @@ function syncUI() {
     else {
         textInput.value = '';
         fontSizeLabel.textContent = '--';
-        startInput.value = '';
-        durationInput.value = '';
+        fontSelect.value = DEFAULT_FONT;
         setPropertiesEnabled(false);
     }
     drawTimeline();
@@ -550,8 +604,15 @@ function autoResizeTextarea() {
     textInput.style.height = 'auto';
     textInput.style.height = `${Math.min(textInput.scrollHeight, 120)}px`;
 }
-// -------- テキスト追加（重なり防止付き） --------
+// -------- テキスト追加 --------
 function addText() {
+    const startFrame = currentFrame;
+    const duration = DEFAULT_CLIP_DURATION;
+    const layerId = findAvailableLayer(startFrame, duration);
+    if (layerId === null) {
+        alert('All layers are full at this time position. Please move or delete existing clips.');
+        return;
+    }
     const newClip = {
         id: generateId(),
         text: 'New Text',
@@ -559,11 +620,11 @@ function addText() {
         color: '#ffffff',
         x: 0,
         y: 0,
-        layerId: 1,
-        startFrame: currentFrame,
-        duration: DEFAULT_CLIP_DURATION
+        layerId: layerId,
+        startFrame: startFrame,
+        duration: duration,
+        fontFamily: DEFAULT_FONT
     };
-    applyOverlapPrevention(newClip);
     clips.push(newClip);
     selectedId = newClip.id;
     syncUI();
@@ -582,6 +643,7 @@ function updateSelected() {
     if (!selected)
         return;
     selected.text = textInput.value || ' ';
+    selected.fontFamily = fontSelect.value;
     selected.fontSize = parseInt(fontSizeSlider.value, 10);
     selected.color = colorPicker.value;
     selected.x = parseInt(xSlider.value, 10);
@@ -591,7 +653,7 @@ function updateSelected() {
     drawPreview();
     drawTimeline();
 }
-// -------- Start / Duration 更新（重なり防止付き） --------
+// -------- Start / Duration 更新 --------
 function updateStart() {
     const selected = getSelected();
     if (!selected)
@@ -704,11 +766,37 @@ function setupTextInputKeyboard() {
         }
     });
 }
+// -------- ★ フォントセレクターイベント ★ --------
+fontSelect.addEventListener('change', updateSelected);
+// -------- ★ 設定UIイベント ★ --------
+function openSettings() {
+    settingsOverlay.classList.add('active');
+}
+function closeSettings() {
+    settingsOverlay.classList.remove('active');
+}
+settingsToggle.addEventListener('click', openSettings);
+settingsClose.addEventListener('click', closeSettings);
+settingsCloseBtn.addEventListener('click', closeSettings);
+// 外側クリックで閉じる
+settingsOverlay.addEventListener('click', (e) => {
+    if (e.target === settingsOverlay) {
+        closeSettings();
+    }
+});
+// テーマ切り替え
+themeSelect.addEventListener('change', () => {
+    applyTheme(themeSelect.value);
+});
+// 重なり防止トグル
+overlapToggle.addEventListener('change', () => {
+    CONFIG.preventOverlap = overlapToggle.checked;
+});
 // -------- キーボードショートカット --------
 function setupKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
         const target = e.target;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
             return;
         }
         if (e.key === ' ') {
@@ -719,6 +807,12 @@ function setupKeyboardShortcuts() {
         if (e.key === 'Backspace' || e.key === 'Delete') {
             e.preventDefault();
             deleteSelected();
+        }
+        // Escapeで設定閉じる
+        if (e.key === 'Escape') {
+            if (settingsOverlay.classList.contains('active')) {
+                closeSettings();
+            }
         }
     });
 }
@@ -828,7 +922,7 @@ setupKeyboardShortcuts();
 // -------- ★ 設定切り替え用関数 ★ --------
 function setOverlapPrevention(enabled) {
     CONFIG.preventOverlap = enabled;
-    console.log(`Overlap prevention: ${enabled ? 'ON' : 'OFF'}`);
+    overlapToggle.checked = enabled;
     if (enabled) {
         for (const clip of clips) {
             resolveOverlap(clip, clip.id);
@@ -855,6 +949,13 @@ window.__editor = {
     stop: stopPlayback,
     reset: () => { stopPlayback(); currentFrame = 0; drawTimeline(); drawPreview(); },
     addClip: (clip) => {
+        const startFrame = clip.startFrame ?? currentFrame;
+        const duration = clip.duration || DEFAULT_CLIP_DURATION;
+        const layerId = clip.layerId ?? findAvailableLayer(startFrame, duration);
+        if (layerId === null) {
+            console.warn('All layers are full at this time position.');
+            return null;
+        }
         const newClip = {
             id: generateId(),
             text: clip.text || 'New Text',
@@ -862,9 +963,10 @@ window.__editor = {
             color: clip.color || '#ffffff',
             x: clip.x || 0,
             y: clip.y || 0,
-            layerId: clip.layerId || 1,
-            startFrame: clip.startFrame ?? currentFrame,
-            duration: clip.duration || DEFAULT_CLIP_DURATION
+            layerId: layerId,
+            startFrame: startFrame,
+            duration: duration,
+            fontFamily: clip.fontFamily || DEFAULT_FONT
         };
         applyOverlapPrevention(newClip);
         clips.push(newClip);
@@ -875,47 +977,14 @@ window.__editor = {
     },
     setOverlapPrevention,
     config: CONFIG,
+    applyTheme,
+    themes: THEMES,
 };
-// -------- 初期化 --------
+// -------- ★ 初期化（空っぽスタート + テーマ適用） ★ --------
 function init() {
-    const sampleClips = [
-        {
-            id: generateId(),
-            text: 'Hello',
-            fontSize: 48,
-            color: '#ffffff',
-            x: 0,
-            y: -50,
-            layerId: 1,
-            startFrame: 0,
-            duration: 90
-        },
-        {
-            id: generateId(),
-            text: 'World',
-            fontSize: 36,
-            color: '#ff6b6b',
-            x: 200,
-            y: 50,
-            layerId: 3,
-            startFrame: 45,
-            duration: 90
-        },
-        {
-            id: generateId(),
-            text: 'AJ Editor',
-            fontSize: 32,
-            color: '#4ecdc4',
-            x: -200,
-            y: 100,
-            layerId: 5,
-            startFrame: 90,
-            duration: 120
-        }
-    ];
-    clips = sampleClips;
-    selectedId = clips[0].id;
+    selectedId = null;
     totalTimeDisplay.textContent = formatTime(TOTAL_FRAMES);
+    applyTheme(CONFIG.theme);
     syncUI();
 }
 init();

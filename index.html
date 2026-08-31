@@ -4,34 +4,68 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AJ Video Editor</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hachi+Maru+Pop&family=Hina+Mincho&family=Noto+Sans+JP:wght@100..900&family=Noto+Serif+JP:wght@200..900&family=Yuji+Boku&display=swap" rel="stylesheet">
+
     <style>
+        /* ============================================================
+           ベース
+           ============================================================ */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+
+        /* ---- CSS変数（テーマ用） ---- */
+        :root {
+            --bg-primary: #0d0d0d;
+            --bg-secondary: #161616;
+            --bg-card: #111;
+            --text-primary: #e0e0e0;
+            --text-secondary: #888;
+            --border-color: #2a2a2a;
+            --accent: #f5576c;
+            --shadow: rgba(0, 0, 0, 0.6);
+        }
+
         body {
-            background: #0d0d0d;
-            color: #e0e0e0;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             padding: 20px;
+            transition: background 0.3s, color 0.3s;
         }
+
         .app {
             max-width: 1600px;
             width: 100%;
         }
 
+        /* ============================================================
+           ヘッダー
+           ============================================================ */
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 12px 0 20px;
-            border-bottom: 1px solid #2a2a2a;
+            border-bottom: 1px solid var(--border-color);
             margin-bottom: 20px;
         }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
         header h1 {
             font-size: 22px;
             font-weight: 600;
@@ -40,15 +74,222 @@
             -webkit-text-fill-color: transparent;
             letter-spacing: 1px;
         }
-        header .badge {
-            font-size: 12px;
-            color: #888;
-            background: #1e1e1e;
-            padding: 4px 14px;
-            border-radius: 20px;
-            border: 1px solid #333;
+
+        .settings-toggle {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            line-height: 1;
+        }
+        .settings-toggle:hover {
+            color: var(--text-primary);
+            background: var(--bg-secondary);
         }
 
+        header .badge {
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            padding: 4px 14px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        /* ============================================================
+           オーバーレイ（設定ウィンドウ背景）
+           ============================================================ */
+        .settings-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            animation: fadeIn 0.25s ease;
+        }
+
+        .settings-overlay.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* ============================================================
+           設定ウィンドウ
+           ============================================================ */
+        .settings-window {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            width: 800px;
+            max-width: 92vw;
+            max-height: 85vh;
+            padding: 28px 32px;
+            box-shadow: 0 20px 60px var(--shadow);
+            display: flex;
+            flex-direction: column;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.96);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-shrink: 0;
+        }
+
+        .settings-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .settings-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 28px;
+            cursor: pointer;
+            padding: 0 8px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+        .settings-close:hover {
+            color: var(--text-primary);
+        }
+
+        .settings-body {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding-right: 4px;
+        }
+
+        .settings-body::-webkit-scrollbar {
+            width: 4px;
+        }
+        .settings-body::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+            border-radius: 4px;
+        }
+        .settings-body::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        /* ---- 設定項目 ---- */
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .setting-group label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .setting-group select,
+        .setting-group input[type="checkbox"] {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border 0.2s;
+        }
+
+        .setting-group select:focus {
+            border-color: var(--accent);
+        }
+
+        .setting-group select option {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .checkbox-group label {
+            font-size: 14px;
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+
+        .settings-footer {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            flex-shrink: 0;
+        }
+
+        .settings-footer .btn-close {
+            padding: 8px 28px;
+            border: none;
+            border-radius: 8px;
+            background: var(--accent);
+            color: #fff;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .settings-footer .btn-close:hover {
+            opacity: 0.85;
+        }
+
+        /* ============================================================
+           メインコンテンツ
+           ============================================================ */
         .top-section {
             display: flex;
             gap: 20px;
@@ -59,9 +300,9 @@
         .canvas-wrapper {
             flex: 1;
             min-width: 0;
-            background: #111;
+            background: var(--bg-card);
             border-radius: 12px;
-            border: 1px solid #2a2a2a;
+            border: 1px solid var(--border-color);
             padding: 16px;
             display: flex;
             justify-content: center;
@@ -83,9 +324,9 @@
             display: flex;
             flex-direction: column;
             gap: 14px;
-            background: #161616;
+            background: var(--bg-secondary);
             border-radius: 12px;
-            border: 1px solid #2a2a2a;
+            border: 1px solid var(--border-color);
             padding: 20px 20px;
             max-height: 600px;
             overflow-y: auto;
@@ -99,7 +340,7 @@
         }
         .control-group label {
             font-size: 13px;
-            color: #aaa;
+            color: var(--text-secondary);
             min-width: 60px;
             font-weight: 500;
             transition: color 0.2s;
@@ -112,9 +353,9 @@
             min-width: 100px;
             padding: 6px 10px;
             border-radius: 6px;
-            border: 1px solid #333;
-            background: #0d0d0d;
-            color: #fff;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
             font-size: 14px;
             font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
             outline: none;
@@ -125,16 +366,40 @@
             line-height: 1.5;
         }
         .control-group textarea:focus {
-            border-color: #f5576c;
+            border-color: var(--accent);
         }
         .control-group textarea:disabled {
             opacity: 0.3;
             cursor: not-allowed;
         }
+        .control-group select {
+            flex: 1;
+            min-width: 100px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 13px;
+            outline: none;
+            transition: border 0.2s, opacity 0.2s;
+            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+        }
+        .control-group select:focus {
+            border-color: var(--accent);
+        }
+        .control-group select:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .control-group select option {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
         .control-group input[type="range"] {
             flex: 1;
             min-width: 80px;
-            accent-color: #f5576c;
+            accent-color: var(--accent);
             background: transparent;
             cursor: pointer;
             transition: opacity 0.2s;
@@ -147,7 +412,7 @@
             width: 40px;
             height: 34px;
             padding: 2px;
-            border: 1px solid #333;
+            border: 1px solid var(--border-color);
             border-radius: 6px;
             background: transparent;
             cursor: pointer;
@@ -161,9 +426,9 @@
             width: 72px;
             padding: 4px 6px;
             border-radius: 6px;
-            border: 1px solid #333;
-            background: #0d0d0d;
-            color: #fff;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
             font-size: 13px;
             font-family: 'Consolas', monospace;
             text-align: center;
@@ -171,7 +436,7 @@
             transition: border 0.2s, opacity 0.2s;
         }
         .control-group input[type="number"]:focus {
-            border-color: #f5576c;
+            border-color: var(--accent);
         }
         .control-group input[type="number"]:disabled {
             opacity: 0.3;
@@ -190,8 +455,8 @@
             display: flex;
             align-items: center;
             gap: 4px;
-            background: #0d0d0d;
-            border: 1px solid #333;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
             border-radius: 6px;
             padding: 0 8px;
             transition: opacity 0.2s;
@@ -205,7 +470,7 @@
         }
         .coord-input span {
             font-size: 13px;
-            color: #888;
+            color: var(--text-secondary);
             font-weight: 600;
             font-family: 'Consolas', monospace;
         }
@@ -214,7 +479,7 @@
             border: none;
             background: transparent;
             padding: 4px 0;
-            color: #fff;
+            color: var(--text-primary);
             font-size: 13px;
             font-family: 'Consolas', monospace;
             text-align: center;
@@ -237,7 +502,7 @@
             padding: 6px 16px;
             border: none;
             border-radius: 6px;
-            background: linear-gradient(135deg, #f093fb, #f5576c);
+            background: linear-gradient(135deg, #f093fb, var(--accent));
             color: #fff;
             font-weight: 600;
             font-size: 13px;
@@ -264,7 +529,7 @@
 
         .value {
             font-size: 13px;
-            color: #888;
+            color: var(--text-secondary);
             min-width: 44px;
             text-align: right;
             font-family: 'Consolas', monospace;
@@ -276,7 +541,7 @@
 
         .separator {
             border: none;
-            border-top: 1px solid #2a2a2a;
+            border-top: 1px solid var(--border-color);
             margin: 4px 0;
         }
 
@@ -294,11 +559,13 @@
             font-family: 'Consolas', monospace;
         }
 
-        /* ----- 下段：タイムライン ----- */
+        /* ============================================================
+           タイムライン
+           ============================================================ */
         .bottom-section {
-            background: #161616;
+            background: var(--bg-secondary);
             border-radius: 12px;
-            border: 1px solid #2a2a2a;
+            border: 1px solid var(--border-color);
             padding: 16px 20px;
             display: flex;
             flex-direction: column;
@@ -323,8 +590,8 @@
             height: 32px;
             border: none;
             border-radius: 50%;
-            background: #2a2a2a;
-            color: #fff;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             font-size: 16px;
             cursor: pointer;
             transition: all 0.2s;
@@ -333,19 +600,19 @@
             justify-content: center;
         }
         .timeline-controls .play-btn:hover {
-            background: #3a3a3a;
+            background: var(--border-color);
         }
         .timeline-controls .play-btn.playing {
-            background: #f5576c;
+            background: var(--accent);
         }
         .timeline-controls .play-btn.playing:hover {
-            background: #e04560;
+            opacity: 0.85;
         }
 
         .timeline-controls .time-display {
             font-size: 13px;
             font-family: 'Consolas', monospace;
-            color: #aaa;
+            color: var(--text-secondary);
             letter-spacing: 0.5px;
         }
         .timeline-controls .time-display .sep {
@@ -361,9 +628,9 @@
             width: 100%;
             overflow-x: auto;
             overflow-y: hidden;
-            background: #0d0d0d;
+            background: var(--bg-primary);
             border-radius: 6px;
-            border: 1px solid #1a1a1a;
+            border: 1px solid var(--border-color);
             padding: 4px 0;
             min-height: 220px;
             max-height: 260px;
@@ -373,17 +640,17 @@
             height: 6px;
         }
         #timelineContainer::-webkit-scrollbar-track {
-            background: #111;
+            background: var(--bg-primary);
             border-radius: 3px;
         }
         #timelineContainer::-webkit-scrollbar-thumb {
-            background: #333;
+            background: var(--border-color);
             border-radius: 3px;
         }
 
         .timeline-ruler {
             position: relative;
-            border-bottom: 1px solid #2a2a2a;
+            border-bottom: 1px solid var(--border-color);
             margin-bottom: 2px;
             display: flex;
             align-items: flex-end;
@@ -403,7 +670,7 @@
         }
         .timeline-tick.minor {
             height: 50%;
-            border-left-color: #2a2a2a;
+            border-left-color: var(--border-color);
         }
         .timeline-tick-label {
             position: absolute;
@@ -420,7 +687,7 @@
             top: 0;
             width: 2px;
             height: 100%;
-            background: #f5576c;
+            background: var(--accent);
             z-index: 10;
             pointer-events: none;
         }
@@ -431,14 +698,14 @@
             left: -4px;
             width: 10px;
             height: 10px;
-            background: #f5576c;
+            background: var(--accent);
             border-radius: 50%;
         }
 
         .timeline-track {
             display: flex;
             align-items: center;
-            border-bottom: 1px solid #1a1a1a;
+            border-bottom: 1px solid var(--border-color);
             position: relative;
             min-height: 32px;
         }
@@ -513,6 +780,9 @@
             pointer-events: none;
         }
 
+        /* ============================================================
+           レスポンシブ
+           ============================================================ */
         @media (max-width: 1000px) {
             .top-section {
                 flex-direction: column;
@@ -536,6 +806,10 @@
             #timelineContainer {
                 min-height: 180px;
                 max-height: 220px;
+            }
+            .settings-window {
+                width: 92vw;
+                padding: 20px 24px;
             }
         }
 
@@ -564,36 +838,106 @@
                 min-width: 50px;
                 font-size: 12px;
             }
+            .settings-window {
+                padding: 16px 18px;
+                max-height: 90vh;
+            }
+            .settings-header h2 {
+                font-size: 18px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="app">
+        <!-- ============================================================
+        ヘッダー
+        ============================================================ -->
         <header>
-            <h1>AJ Video Editor</h1>
+            <div class="header-left">
+                <h1>AJ Video Editor</h1>
+                <button class="settings-toggle" id="settingsToggle" title="Settings">⚙</button>
+            </div>
             <span class="badge">alpha · local</span>
         </header>
 
+        <!-- ============================================================
+        設定オーバーレイ
+        ============================================================ -->
+        <div class="settings-overlay" id="settingsOverlay">
+            <div class="settings-window" id="settingsWindow">
+                <div class="settings-header">
+                    <h2>⚙ Settings</h2>
+                    <button class="settings-close" id="settingsClose">✕</button>
+                </div>
+
+                <div class="settings-body">
+                    <!-- テーマ選択 -->
+                    <div class="setting-group">
+                        <label for="themeSelect">Theme</label>
+                        <select id="themeSelect">
+                            <option value="black">ブラック（シンプル）</option>
+                            <option value="black-red">レッド（暗）</option>
+                            <option value="black-blue">ブルー（暗）</option>
+                            <option value="black-green">グリーン（暗）</option>
+                            <option value="black-yellow">イエロー（暗）</option>
+                            <option value="black-purple">パープル（暗）</option>
+                            <option value="white" selected>ホワイト（シンプル）</option>
+                            <option value="white-red">レッド（明）</option>
+                            <option value="white-blue">ブルー（明）</option>
+                            <option value="white-green">グリーン（明）</option>
+                            <option value="white-yellow">イエロー（明）</option>
+                            <option value="white-purple">パープル（明）</option>
+                        </select>
+                    </div>
+
+                    <!-- 重なり防止（後で連動） -->
+                    <div class="setting-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="overlapToggle" checked />
+                            <label for="overlapToggle">アイテムの重なり防止</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-footer">
+                    <button class="btn-close" id="settingsCloseBtn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================
+        メインコンテンツ
+        ============================================================ -->
         <div class="top-section">
             <div class="canvas-wrapper">
                 <canvas id="canvas" width="1920" height="1080"></canvas>
             </div>
 
             <div class="properties">
-                <!-- Text -->
                 <div class="control-group">
                     <label>Text</label>
                     <textarea id="textInput" rows="1"></textarea>
                 </div>
 
-                <!-- Size -->
+                <div class="control-group">
+                    <label>Font</label>
+                    <select id="fontSelect">
+                        <option value='"Hiragino Sans", "Microsoft YaHei", sans-serif'>デフォルト</option>
+                        <option value='"Hina Mincho", serif'>Hina Mincho</option>
+                        <option value='"Hachi Maru Pop", serif'>Hachi Maru Pop</option>
+                        <option value='"Noto Sans JP", sans-serif'>Noto Sans JP</option>
+                        <option value='"Noto Serif JP", serif'>Noto Serif JP</option>
+                        <option value='"Yuji Boku", serif'>Yuji Boku</option>
+                    </select>
+                </div>
+
                 <div class="control-group">
                     <label>Size</label>
-                    <input type="range" id="fontSize" min="16" max="200" value="48" />
+                    <input type="range" id="fontSize" min="0" max="1000" value="50" />
                     <span class="value" id="fontSizeLabel">--</span>
                 </div>
 
-                <!-- Color -->
                 <div class="control-group">
                     <label>Color</label>
                     <input type="color" id="colorPicker" value="#ffffff" />
@@ -601,7 +945,6 @@
 
                 <hr class="separator" />
 
-                <!-- X -->
                 <div class="control-group">
                     <label>X</label>
                     <input type="range" id="xPos" min="-500" max="500" value="0" step="1" />
@@ -611,7 +954,6 @@
                     </div>
                 </div>
 
-                <!-- Y -->
                 <div class="control-group">
                     <label>Y</label>
                     <input type="range" id="yPos" min="-500" max="500" value="0" step="1" />
@@ -623,7 +965,6 @@
 
                 <hr class="separator" />
 
-                <!-- Start / Duration -->
                 <div class="control-group">
                     <label>Start</label>
                     <div class="time-input-group">

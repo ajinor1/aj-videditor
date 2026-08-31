@@ -13,7 +13,7 @@ const TIMELINE_HEADER_HEIGHT = 28;
 const MAX_LAYERS = 99;
 const DEFAULT_LAYER_COUNT = 10;
 
-// -------- 設定 --------
+// -------- 初期設定 --------
 const CONFIG = {
     preventOverlap: true,
     theme: 'white',

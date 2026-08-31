@@ -204,7 +204,8 @@
             color: var(--text-secondary);
         }
         .setting-group select,
-        .setting-group input[type="checkbox"] {
+        .setting-group input[type="checkbox"],
+        .setting-group input[type="number"] {
             padding: 8px 12px;
             border-radius: 8px;
             border: 1px solid var(--border-color);
@@ -214,13 +215,28 @@
             outline: none;
             transition: border 0.2s;
         }
-        .setting-group select:focus {
+        .setting-group select:focus,
+        .setting-group input[type="number"]:focus {
             border-color: var(--accent);
         }
         .setting-group select option {
             background: var(--bg-primary);
             color: var(--text-primary);
         }
+        .setting-group .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .setting-group .input-group .hint {
+            font-size: 12px;
+            color: #666;
+        }
+        .setting-group .input-group input[type="number"] {
+            width: 80px;
+        }
+
         .checkbox-group {
             display: flex;
             align-items: center;
@@ -651,9 +667,10 @@
             border-radius: 6px;
             border: 1px solid var(--border-color);
             padding: 4px 0;
-            min-height: 220px;
-            max-height: 260px;
             position: relative;
+            min-height: 100px;
+            max-height: 540px;
+            transition: height 0.2s ease;
         }
         #timelineContainer::-webkit-scrollbar {
             height: 6px;
@@ -799,6 +816,27 @@
             pointer-events: none;
         }
 
+        /* ★ レイヤー追加ボタン用スタイル ★ */
+        .timeline-add-layer {
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            transition: all 0.2s;
+        }
+        .timeline-add-layer:hover {
+            background: var(--bg-secondary);
+        }
+        .timeline-add-layer .btn-primary {
+            transition: all 0.2s;
+        }
+        #addLayerInputContainer input[type="number"]::-webkit-outer-spin-button,
+        #addLayerInputContainer input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        #addLayerInputContainer input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
         @media (max-width: 1000px) {
             .top-section {
                 flex-direction: column;
@@ -820,8 +858,7 @@
                 width: 100%;
             }
             #timelineContainer {
-                min-height: 180px;
-                max-height: 220px;
+                max-height: 400px;
             }
             .settings-window {
                 width: 92vw;
@@ -844,8 +881,8 @@
                 font-size: 8px;
             }
             #timelineContainer {
-                min-height: 160px;
-                max-height: 200px;
+                max-height: 300px;
+                min-height: 80px;
             }
             .timeline-controls .time-display {
                 font-size: 11px;
@@ -860,6 +897,20 @@
             }
             .settings-header h2 {
                 font-size: 18px;
+            }
+            .setting-group .input-group input[type="number"] {
+                width: 60px;
+            }
+            .timeline-add-layer .btn-primary {
+                font-size: 11px;
+                padding: 4px 10px;
+            }
+            #addLayerInputContainer {
+                flex-wrap: wrap;
+                gap: 4px;
+            }
+            #addLayerInputContainer input[type="number"] {
+                width: 50px;
             }
         }
     </style>
@@ -881,6 +932,7 @@
                     <button class="settings-close" id="settingsClose">✕</button>
                 </div>
                 <div class="settings-body">
+                    <!-- Theme -->
                     <div class="setting-group">
                         <label for="themeSelect">Theme</label>
                         <select id="themeSelect">
@@ -898,10 +950,22 @@
                             <option value="black-purple">パープル（暗）</option>
                         </select>
                     </div>
+
+                    <!-- Overlap Prevention -->
                     <div class="setting-group">
                         <div class="checkbox-group">
                             <input type="checkbox" id="overlapToggle" checked />
                             <label for="overlapToggle">アイテムの重なり防止</label>
+                        </div>
+                    </div>
+
+                    <!-- Number of Layers -->
+                    <div class="setting-group">
+                        <label for="layerCountInput">Number of Layers</label>
+                        <div class="input-group">
+                            <input type="number" id="layerCountInput" value="10" min="1" max="99" />
+                            <span class="hint">(1〜99)</span>
+                            <button class="btn-primary btn-sm" id="applyLayerCountBtn">Apply</button>
                         </div>
                     </div>
                 </div>

@@ -1,14 +1,19 @@
 // ============================================================
 // AJ Video Editor - エントリーポイント
-// フェーズ8: 図形機能（数値入力共通仕様）
+// フェーズ10: レイヤー数可変（上限99 / 初期10 / 上から01 / 追加ボタン付き）
 // ============================================================
 // -------- 定数 --------
 const FPS = 30;
-const LAYER_COUNT = 5;
 const TIMELINE_DURATION = 20;
 const TOTAL_FRAMES = TIMELINE_DURATION * FPS;
 const DEFAULT_CLIP_DURATION = 3 * FPS;
 const DEFAULT_FONT = '"Hiragino Sans", "Microsoft YaHei", sans-serif';
+const TIMELINE_HEIGHT = 32;
+const TIMELINE_PADDING_LEFT = 80;
+const TIMELINE_PADDING_RIGHT = 20;
+const TIMELINE_HEADER_HEIGHT = 28;
+const MAX_LAYERS = 99;
+const DEFAULT_LAYER_COUNT = 10;
 // -------- ★ スライダー拡張段階定義 ★ --------
 const SLIDER_STAGES = {
     coord: [500, 1000, 2000, 4000, 8000],
@@ -17,7 +22,7 @@ const SLIDER_STAGES = {
     stroke: [100, 200, 400, 800, 1600, 3200],
     fontSize: [100, 200, 400, 800, 1600, 3200],
 };
-// -------- ★ 数値入力の設定（各プロパティごと） ★ --------
+// -------- ★ 数値入力の設定 ★ --------
 const NUMBER_CONFIGS = {
     x: { min: -8000, max: 8000, default: 0, stages: SLIDER_STAGES.coord },
     y: { min: -8000, max: 8000, default: 0, stages: SLIDER_STAGES.coord },
@@ -28,6 +33,13 @@ const NUMBER_CONFIGS = {
     fontSize: { min: 0, max: 3200, default: 50, stages: SLIDER_STAGES.fontSize },
     start: { min: 0, max: 600, default: 0, stages: null },
     duration: { min: 1, max: 600, default: 90, stages: null },
+};
+// -------- ★ 設定（レイヤー数追加） ★ --------
+const CONFIG = {
+    preventOverlap: true,
+    theme: 'white',
+    bgColor: '#000000',
+    layerCount: DEFAULT_LAYER_COUNT,
 };
 // -------- ★ 汎用関数 ★ --------
 function getSliderMax(value, stages) {
@@ -54,53 +66,43 @@ function updateSliderRangePositive(slider, value, stages, isDragging) {
 }
 // -------- ★ 共通数値入力処理 ★ --------
 function setupNumberInput(input, slider, config) {
-    // クリック / フォーカスで全選択
     input.addEventListener('click', () => input.select());
     input.addEventListener('focus', () => input.select());
-    // Enterで確定
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             commitNumberInput(input, slider, config);
         }
     });
-    // フォーカス喪失で確定（change）
     input.addEventListener('change', () => {
         commitNumberInput(input, slider, config);
     });
 }
 function commitNumberInput(input, slider, config) {
     let val = parseFloat(input.value);
-    // 空文字 or NaN → デフォルト値
     if (isNaN(val) || input.value.trim() === '') {
         val = config.default;
     }
-    // 範囲制限
     val = Math.max(config.min, Math.min(config.max, val));
-    // スライダーと入力欄に反映
     slider.value = String(val);
     input.value = String(val);
-    // 拡張（あれば）
     if (config.stages) {
         config.updateSliderRangeFn(val);
     }
-    // コールバック（クリップ更新）
     config.onCommit(val);
-    // フォーカス解除（入力状態を解除）
     input.blur();
 }
-// -------- ★ 拡張用ヘルパー ★ --------
-function getIsDraggingFlag(dragFlags) {
-    if (typeof dragFlags === 'boolean') {
-        return () => dragFlags;
-    }
-    return () => dragFlags.x || dragFlags.y;
+// -------- ★ スライダードラッグ制御（共通化） ★ --------
+function setupSliderDrag(slider, onStart, onEnd) {
+    const start = () => { onStart(); };
+    const end = () => { onEnd(); };
+    slider.addEventListener('mousedown', start);
+    slider.addEventListener('mouseup', end);
+    slider.addEventListener('mouseleave', end);
+    slider.addEventListener('touchstart', start);
+    slider.addEventListener('touchend', end);
+    slider.addEventListener('touchcancel', end);
 }
-// -------- 設定 --------
-const CONFIG = {
-    preventOverlap: true,
-    theme: 'white',
-};
 // -------- テーマ定義 --------
 const THEMES = {
     'white': { bg: '#f5f5f5', secondary: '#e8e8e8', card: '#ffffff', text: '#222222', textSecondary: '#666666', border: '#d0d0d0', accent: '#f5576c' },
@@ -157,6 +159,8 @@ const settingsClose = document.getElementById('settingsClose');
 const settingsCloseBtn = document.getElementById('settingsCloseBtn');
 const themeSelect = document.getElementById('themeSelect');
 const overlapToggle = document.getElementById('overlapToggle');
+const layerCountInput = document.getElementById('layerCountInput');
+const applyLayerCountBtn = document.getElementById('applyLayerCountBtn');
 // -------- キャンバスサイズ --------
 const CANVAS_W = 1920;
 const CANVAS_H = 1080;
@@ -171,6 +175,8 @@ let idCounter = 0;
 let currentFrame = 0;
 let isPlaying = false;
 let playInterval = null;
+let currentLayerCount = CONFIG.layerCount;
+// ドラッグ中フラグ
 let isDraggingX = false;
 let isDraggingY = false;
 let isDraggingRotation = false;
@@ -186,10 +192,6 @@ let dragStartMouseY = 0;
 let dragStartFrame = 0;
 let dragStartLayer = 0;
 let dragClipElement = null;
-const TIMELINE_HEIGHT = 32;
-const TIMELINE_PADDING_LEFT = 80;
-const TIMELINE_PADDING_RIGHT = 20;
-const TIMELINE_HEADER_HEIGHT = 28;
 let isDropdownOpen = false;
 function toggleDropdown() {
     isDropdownOpen = !isDropdownOpen;
@@ -249,6 +251,25 @@ function getClipsAtFrame(frame) {
     return clips.filter(clip => {
         return frame >= clip.startFrame && frame < clip.startFrame + clip.duration;
     });
+}
+// -------- ★ レイヤー数変更関数 ★ --------
+function setLayerCount(newCount) {
+    newCount = Math.max(1, Math.min(MAX_LAYERS, newCount));
+    if (newCount === currentLayerCount)
+        return;
+    // 現在のレイヤー数より減らす場合、はみ出たクリップを最前面レイヤーに移動
+    if (newCount < currentLayerCount) {
+        for (const clip of clips) {
+            if (clip.layerId > newCount) {
+                clip.layerId = newCount;
+            }
+        }
+    }
+    currentLayerCount = newCount;
+    CONFIG.layerCount = newCount;
+    layerCountInput.value = String(newCount);
+    drawTimeline();
+    drawPreview();
 }
 // -------- 図形描画関数 --------
 function drawShape(ctx, clip) {
@@ -369,7 +390,7 @@ function applyTheme(themeName) {
 }
 // -------- プレビュー描画 --------
 function drawPreview() {
-    ctx.fillStyle = '#1a1a1a';
+    ctx.fillStyle = CONFIG.bgColor;
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
     ctx.strokeStyle = 'rgba(255,255,255,0.03)';
     ctx.lineWidth = 1;
@@ -464,12 +485,15 @@ function drawPreview() {
         }
     }
 }
-// -------- タイムライン描画 --------
+// -------- ★ タイムライン描画（レイヤー追加ボタン付き） ★ --------
 function drawTimeline() {
     const containerWidth = timelineContainer.clientWidth - 4;
     const usableWidth = containerWidth - TIMELINE_PADDING_LEFT - TIMELINE_PADDING_RIGHT;
     const pixelsPerSecond = usableWidth / TIMELINE_DURATION;
+    const totalTrackHeight = currentLayerCount * TIMELINE_HEIGHT;
+    const totalHeight = TIMELINE_HEADER_HEIGHT + totalTrackHeight;
     let html = '';
+    // --- 時間目盛り ---
     html += `<div class="timeline-ruler" style="height:${TIMELINE_HEADER_HEIGHT}px; padding-left:${TIMELINE_PADDING_LEFT}px; padding-right:${TIMELINE_PADDING_RIGHT}px;">`;
     html += `<div class="timeline-ruler-inner" style="position:relative; height:100%; width:100%;">`;
     for (let s = 0; s <= TIMELINE_DURATION; s++) {
@@ -484,7 +508,8 @@ function drawTimeline() {
     const headX = (currentFrame / FPS) * pixelsPerSecond;
     html += `<div class="timeline-playhead" style="left:${headX}px;"></div>`;
     html += `</div></div>`;
-    for (let layerId = 1; layerId <= LAYER_COUNT; layerId++) {
+    // --- レイヤートラック（上から01） ---
+    for (let layerId = 1; layerId <= currentLayerCount; layerId++) {
         const layerLabel = String(layerId).padStart(2, '0');
         html += `<div class="timeline-track" style="height:${TIMELINE_HEIGHT}px;">`;
         html += `<div class="timeline-track-label">LAYER ${layerLabel}</div>`;
@@ -509,7 +534,18 @@ function drawTimeline() {
         }
         html += `</div></div>`;
     }
+    // --- ★ レイヤー追加ボタン（一番下） ★ ---
+    html += `<div class="timeline-add-layer" style="height:${TIMELINE_HEIGHT}px; display:flex; align-items:center; justify-content:center; border-top:1px solid var(--border-color); padding-left:${TIMELINE_PADDING_LEFT}px; padding-right:${TIMELINE_PADDING_RIGHT}px;">`;
+    html += `<button class="btn-primary btn-sm" id="addLayerBtn" style="width:100%; max-width:200px;">+ Add Layer</button>`;
+    html += `<div id="addLayerInputContainer" style="display:none; margin-left:10px; align-items:center; gap:8px; flex:1;">`;
+    html += `<input type="number" id="addLayerCountInput" value="1" min="1" max="99" style="width:60px; padding:4px 8px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary);" />`;
+    html += `<span style="font-size:12px; color:#666;">layers</span>`;
+    html += `<button class="btn-primary btn-sm" id="confirmAddLayerBtn">Add</button>`;
+    html += `<button class="btn-primary btn-sm btn-danger" id="cancelAddLayerBtn">Cancel</button>`;
+    html += `</div></div>`;
+    timelineContainer.style.height = `${Math.min(totalHeight + 8 + TIMELINE_HEIGHT, 540)}px`;
     timelineContainer.innerHTML = html;
+    // --- イベント登録 ---
     document.querySelectorAll('.timeline-clip').forEach(el => {
         el.addEventListener('click', (e) => {
             if (isDraggingClip)
@@ -542,6 +578,58 @@ function drawTimeline() {
     if (ruler) {
         ruler.addEventListener('mousedown', (e) => {
             startSeek(e);
+        });
+    }
+    // --- ★ レイヤー追加ボタンイベント ★ ---
+    const addLayerBtn = document.getElementById('addLayerBtn');
+    const addLayerInputContainer = document.getElementById('addLayerInputContainer');
+    const addLayerCountInput = document.getElementById('addLayerCountInput');
+    const confirmAddLayerBtn = document.getElementById('confirmAddLayerBtn');
+    const cancelAddLayerBtn = document.getElementById('cancelAddLayerBtn');
+    if (addLayerBtn) {
+        addLayerBtn.addEventListener('click', () => {
+            addLayerBtn.style.display = 'none';
+            if (addLayerInputContainer) {
+                addLayerInputContainer.style.display = 'flex';
+                addLayerCountInput?.focus();
+                addLayerCountInput?.select();
+            }
+        });
+    }
+    if (confirmAddLayerBtn) {
+        confirmAddLayerBtn.addEventListener('click', () => {
+            const val = parseInt(addLayerCountInput?.value || '1', 10);
+            if (!isNaN(val) && val > 0) {
+                const newCount = Math.min(currentLayerCount + val, MAX_LAYERS);
+                setLayerCount(newCount);
+            }
+            if (addLayerInputContainer) {
+                addLayerInputContainer.style.display = 'none';
+            }
+            if (addLayerBtn) {
+                addLayerBtn.style.display = '';
+            }
+        });
+    }
+    if (cancelAddLayerBtn) {
+        cancelAddLayerBtn.addEventListener('click', () => {
+            if (addLayerInputContainer) {
+                addLayerInputContainer.style.display = 'none';
+            }
+            if (addLayerBtn) {
+                addLayerBtn.style.display = '';
+            }
+        });
+    }
+    if (addLayerCountInput) {
+        addLayerCountInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                confirmAddLayerBtn?.click();
+            }
+            if (e.key === 'Escape') {
+                cancelAddLayerBtn?.click();
+            }
         });
     }
     currentTimeDisplay.textContent = formatTime(currentFrame);
@@ -588,8 +676,8 @@ function onClipDragMove(e) {
     clip.startFrame = newStartFrame;
     const trackY = e.clientY - rect.top - TIMELINE_HEADER_HEIGHT;
     const layerIndex = Math.floor(trackY / TIMELINE_HEIGHT);
-    let newLayerId = layerIndex + 1;
-    newLayerId = Math.max(1, Math.min(LAYER_COUNT, newLayerId));
+    let newLayerId = currentLayerCount - layerIndex;
+    newLayerId = Math.max(1, Math.min(currentLayerCount, newLayerId));
     const oldLayer = clip.layerId;
     clip.layerId = newLayerId;
     if (CONFIG.preventOverlap) {
@@ -738,7 +826,7 @@ function applyOverlapPrevention(clip, ignoreId) {
     resolveOverlap(clip, ignoreId);
 }
 function findAvailableLayer(startFrame, duration) {
-    for (let layerId = 1; layerId <= LAYER_COUNT; layerId++) {
+    for (let layerId = 1; layerId <= currentLayerCount; layerId++) {
         const hasOverlap = clips.some(clip => {
             if (clip.layerId !== layerId)
                 return false;
@@ -809,11 +897,16 @@ function syncUI() {
     }
     else {
         typeDisplay.textContent = '-';
-        textProperties.style.display = '';
+        textProperties.style.display = 'none';
         shapeProperties.style.display = 'none';
         textInput.value = '';
         fontSizeLabel.textContent = '--';
         fontSelect.value = DEFAULT_FONT;
+        xNumber.value = '';
+        yNumber.value = '';
+        rotationNumber.value = '';
+        startInput.value = '';
+        durationInput.value = '';
         setPropertiesEnabled(false);
     }
     drawTimeline();
@@ -955,117 +1048,120 @@ function updateDuration() {
     drawTimeline();
     drawPreview();
 }
-// -------- ★ 数値入力の共通設定 ★ --------
+// -------- 数値入力の共通設定（ループ化） --------
 function setupAllNumberInputs() {
-    // X
-    setupNumberInput(xNumber, xSlider, {
-        min: NUMBER_CONFIGS.x.min,
-        max: NUMBER_CONFIGS.x.max,
-        default: NUMBER_CONFIGS.x.default,
-        stages: NUMBER_CONFIGS.x.stages,
-        getIsDragging: () => isDraggingX || isDraggingY,
-        updateSliderRangeFn: (val) => updateSliderRange(xSlider, val, SLIDER_STAGES.coord, false),
-        onCommit: (val) => {
-            const selected = getSelected();
-            if (!selected)
-                return;
-            selected.x = val;
-            xSlider.value = String(val);
-            xNumber.value = String(val);
-            if (!isDraggingX && !isDraggingY)
-                updateSliderRange(xSlider, val, SLIDER_STAGES.coord, false);
-            drawPreview();
-        }
-    });
-    // Y
-    setupNumberInput(yNumber, ySlider, {
-        min: NUMBER_CONFIGS.y.min,
-        max: NUMBER_CONFIGS.y.max,
-        default: NUMBER_CONFIGS.y.default,
-        stages: NUMBER_CONFIGS.y.stages,
-        getIsDragging: () => isDraggingX || isDraggingY,
-        updateSliderRangeFn: (val) => updateSliderRange(ySlider, val, SLIDER_STAGES.coord, false),
-        onCommit: (val) => {
-            const selected = getSelected();
-            if (!selected)
-                return;
-            selected.y = val;
-            ySlider.value = String(val);
-            yNumber.value = String(val);
-            if (!isDraggingX && !isDraggingY)
-                updateSliderRange(ySlider, val, SLIDER_STAGES.coord, false);
-            drawPreview();
-        }
-    });
-    // Rotation
-    setupNumberInput(rotationNumber, rotationSlider, {
-        min: NUMBER_CONFIGS.rotation.min,
-        max: NUMBER_CONFIGS.rotation.max,
-        default: NUMBER_CONFIGS.rotation.default,
-        stages: NUMBER_CONFIGS.rotation.stages,
-        getIsDragging: () => isDraggingRotation,
-        updateSliderRangeFn: (val) => updateSliderRange(rotationSlider, val, SLIDER_STAGES.rotation, false),
-        onCommit: (val) => {
-            const selected = getSelected();
-            if (!selected)
-                return;
-            selected.rotation = val;
-            rotationSlider.value = String(val);
-            rotationNumber.value = String(val);
-            if (!isDraggingRotation)
-                updateSliderRange(rotationSlider, val, SLIDER_STAGES.rotation, false);
-            drawPreview();
-        }
-    });
-    // Start
-    setupNumberInput(startInput, startInput, {
-        min: NUMBER_CONFIGS.start.min,
-        max: NUMBER_CONFIGS.start.max,
-        default: NUMBER_CONFIGS.start.default,
-        stages: null,
-        getIsDragging: () => false,
-        updateSliderRangeFn: () => { },
-        onCommit: (val) => {
-            const selected = getSelected();
-            if (!selected)
-                return;
-            const oldStart = selected.startFrame;
-            selected.startFrame = val;
-            if (CONFIG.preventOverlap && isOverlapping(selected, selected.id)) {
-                selected.startFrame = oldStart;
-                resolveOverlap(selected, selected.id);
+    const configs = [
+        {
+            input: xNumber,
+            slider: xSlider,
+            config: NUMBER_CONFIGS.x,
+            getIsDragging: () => isDraggingX || isDraggingY,
+            updateFn: (val) => updateSliderRange(xSlider, val, SLIDER_STAGES.coord, false),
+            onCommit: (val) => {
+                const selected = getSelected();
+                if (!selected)
+                    return;
+                selected.x = val;
+                xSlider.value = String(val);
+                xNumber.value = String(val);
+                if (!isDraggingX && !isDraggingY)
+                    updateSliderRange(xSlider, val, SLIDER_STAGES.coord, false);
+                drawPreview();
             }
-            startInput.value = String(selected.startFrame);
-            drawTimeline();
-            drawPreview();
-        }
-    });
-    // Duration
-    setupNumberInput(durationInput, durationInput, {
-        min: NUMBER_CONFIGS.duration.min,
-        max: NUMBER_CONFIGS.duration.max,
-        default: NUMBER_CONFIGS.duration.default,
-        stages: null,
-        getIsDragging: () => false,
-        updateSliderRangeFn: () => { },
-        onCommit: (val) => {
-            const selected = getSelected();
-            if (!selected)
-                return;
-            const maxStart = TOTAL_FRAMES - val;
-            if (selected.startFrame > maxStart)
-                selected.startFrame = Math.max(0, maxStart);
-            const oldDuration = selected.duration;
-            selected.duration = val;
-            if (CONFIG.preventOverlap && isOverlapping(selected, selected.id)) {
-                selected.duration = oldDuration;
-                resolveOverlap(selected, selected.id);
+        },
+        {
+            input: yNumber,
+            slider: ySlider,
+            config: NUMBER_CONFIGS.y,
+            getIsDragging: () => isDraggingX || isDraggingY,
+            updateFn: (val) => updateSliderRange(ySlider, val, SLIDER_STAGES.coord, false),
+            onCommit: (val) => {
+                const selected = getSelected();
+                if (!selected)
+                    return;
+                selected.y = val;
+                ySlider.value = String(val);
+                yNumber.value = String(val);
+                if (!isDraggingX && !isDraggingY)
+                    updateSliderRange(ySlider, val, SLIDER_STAGES.coord, false);
+                drawPreview();
             }
-            durationInput.value = String(selected.duration);
-            drawTimeline();
-            drawPreview();
+        },
+        {
+            input: rotationNumber,
+            slider: rotationSlider,
+            config: NUMBER_CONFIGS.rotation,
+            getIsDragging: () => isDraggingRotation,
+            updateFn: (val) => updateSliderRange(rotationSlider, val, SLIDER_STAGES.rotation, false),
+            onCommit: (val) => {
+                const selected = getSelected();
+                if (!selected)
+                    return;
+                selected.rotation = val;
+                rotationSlider.value = String(val);
+                rotationNumber.value = String(val);
+                if (!isDraggingRotation)
+                    updateSliderRange(rotationSlider, val, SLIDER_STAGES.rotation, false);
+                drawPreview();
+            }
+        },
+        {
+            input: startInput,
+            slider: startInput,
+            config: NUMBER_CONFIGS.start,
+            getIsDragging: () => false,
+            updateFn: () => { },
+            onCommit: (val) => {
+                const selected = getSelected();
+                if (!selected)
+                    return;
+                const oldStart = selected.startFrame;
+                selected.startFrame = val;
+                if (CONFIG.preventOverlap && isOverlapping(selected, selected.id)) {
+                    selected.startFrame = oldStart;
+                    resolveOverlap(selected, selected.id);
+                }
+                startInput.value = String(selected.startFrame);
+                drawTimeline();
+                drawPreview();
+            }
+        },
+        {
+            input: durationInput,
+            slider: durationInput,
+            config: NUMBER_CONFIGS.duration,
+            getIsDragging: () => false,
+            updateFn: () => { },
+            onCommit: (val) => {
+                const selected = getSelected();
+                if (!selected)
+                    return;
+                const maxStart = TOTAL_FRAMES - val;
+                if (selected.startFrame > maxStart)
+                    selected.startFrame = Math.max(0, maxStart);
+                const oldDuration = selected.duration;
+                selected.duration = val;
+                if (CONFIG.preventOverlap && isOverlapping(selected, selected.id)) {
+                    selected.duration = oldDuration;
+                    resolveOverlap(selected, selected.id);
+                }
+                durationInput.value = String(selected.duration);
+                drawTimeline();
+                drawPreview();
+            }
         }
-    });
+    ];
+    for (const cfg of configs) {
+        setupNumberInput(cfg.input, cfg.slider, {
+            min: cfg.config.min,
+            max: cfg.config.max,
+            default: cfg.config.default,
+            stages: cfg.config.stages,
+            getIsDragging: cfg.getIsDragging,
+            updateSliderRangeFn: cfg.updateFn,
+            onCommit: cfg.onCommit
+        });
+    }
 }
 // -------- キーボードショートカット --------
 function setupKeyboardShortcuts() {
@@ -1097,6 +1193,21 @@ settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOver
     closeSettings(); });
 themeSelect.addEventListener('change', () => applyTheme(themeSelect.value));
 overlapToggle.addEventListener('change', () => { CONFIG.preventOverlap = overlapToggle.checked; });
+applyLayerCountBtn.addEventListener('click', () => {
+    const val = parseInt(layerCountInput.value, 10);
+    if (!isNaN(val)) {
+        setLayerCount(val);
+    }
+});
+layerCountInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const val = parseInt(layerCountInput.value, 10);
+        if (!isNaN(val)) {
+            setLayerCount(val);
+        }
+    }
+});
 // -------- ドロップダウンメニュー --------
 addBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1127,9 +1238,7 @@ shapeHeightSlider.addEventListener('input', updateSelected);
 xSlider.addEventListener('input', updateSelected);
 ySlider.addEventListener('input', updateSelected);
 rotationSlider.addEventListener('input', updateSelected);
-// スライダードラッグ制御
-xSlider.addEventListener('mousedown', () => { isDraggingX = true; });
-xSlider.addEventListener('mouseup', () => {
+setupSliderDrag(xSlider, () => { isDraggingX = true; }, () => {
     isDraggingX = false;
     const selected = getSelected();
     if (selected) {
@@ -1137,35 +1246,7 @@ xSlider.addEventListener('mouseup', () => {
         drawPreview();
     }
 });
-xSlider.addEventListener('mouseleave', () => {
-    if (isDraggingX) {
-        isDraggingX = false;
-        const selected = getSelected();
-        if (selected) {
-            updateSliderRange(xSlider, selected.x, SLIDER_STAGES.coord, false);
-            drawPreview();
-        }
-    }
-});
-xSlider.addEventListener('touchstart', () => { isDraggingX = true; });
-xSlider.addEventListener('touchend', () => {
-    isDraggingX = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRange(xSlider, selected.x, SLIDER_STAGES.coord, false);
-        drawPreview();
-    }
-});
-xSlider.addEventListener('touchcancel', () => {
-    isDraggingX = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRange(xSlider, selected.x, SLIDER_STAGES.coord, false);
-        drawPreview();
-    }
-});
-ySlider.addEventListener('mousedown', () => { isDraggingY = true; });
-ySlider.addEventListener('mouseup', () => {
+setupSliderDrag(ySlider, () => { isDraggingY = true; }, () => {
     isDraggingY = false;
     const selected = getSelected();
     if (selected) {
@@ -1173,35 +1254,7 @@ ySlider.addEventListener('mouseup', () => {
         drawPreview();
     }
 });
-ySlider.addEventListener('mouseleave', () => {
-    if (isDraggingY) {
-        isDraggingY = false;
-        const selected = getSelected();
-        if (selected) {
-            updateSliderRange(ySlider, selected.y, SLIDER_STAGES.coord, false);
-            drawPreview();
-        }
-    }
-});
-ySlider.addEventListener('touchstart', () => { isDraggingY = true; });
-ySlider.addEventListener('touchend', () => {
-    isDraggingY = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRange(ySlider, selected.y, SLIDER_STAGES.coord, false);
-        drawPreview();
-    }
-});
-ySlider.addEventListener('touchcancel', () => {
-    isDraggingY = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRange(ySlider, selected.y, SLIDER_STAGES.coord, false);
-        drawPreview();
-    }
-});
-rotationSlider.addEventListener('mousedown', () => { isDraggingRotation = true; });
-rotationSlider.addEventListener('mouseup', () => {
+setupSliderDrag(rotationSlider, () => { isDraggingRotation = true; }, () => {
     isDraggingRotation = false;
     const selected = getSelected();
     if (selected) {
@@ -1209,35 +1262,7 @@ rotationSlider.addEventListener('mouseup', () => {
         drawPreview();
     }
 });
-rotationSlider.addEventListener('mouseleave', () => {
-    if (isDraggingRotation) {
-        isDraggingRotation = false;
-        const selected = getSelected();
-        if (selected) {
-            updateSliderRange(rotationSlider, selected.rotation, SLIDER_STAGES.rotation, false);
-            drawPreview();
-        }
-    }
-});
-rotationSlider.addEventListener('touchstart', () => { isDraggingRotation = true; });
-rotationSlider.addEventListener('touchend', () => {
-    isDraggingRotation = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRange(rotationSlider, selected.rotation, SLIDER_STAGES.rotation, false);
-        drawPreview();
-    }
-});
-rotationSlider.addEventListener('touchcancel', () => {
-    isDraggingRotation = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRange(rotationSlider, selected.rotation, SLIDER_STAGES.rotation, false);
-        drawPreview();
-    }
-});
-strokeWidthSlider.addEventListener('mousedown', () => { isDraggingStroke = true; });
-strokeWidthSlider.addEventListener('mouseup', () => {
+setupSliderDrag(strokeWidthSlider, () => { isDraggingStroke = true; }, () => {
     isDraggingStroke = false;
     const selected = getSelected();
     if (selected) {
@@ -1245,35 +1270,7 @@ strokeWidthSlider.addEventListener('mouseup', () => {
         drawPreview();
     }
 });
-strokeWidthSlider.addEventListener('mouseleave', () => {
-    if (isDraggingStroke) {
-        isDraggingStroke = false;
-        const selected = getSelected();
-        if (selected) {
-            updateSliderRangePositive(strokeWidthSlider, selected.strokeWidth || 0, SLIDER_STAGES.stroke, false);
-            drawPreview();
-        }
-    }
-});
-strokeWidthSlider.addEventListener('touchstart', () => { isDraggingStroke = true; });
-strokeWidthSlider.addEventListener('touchend', () => {
-    isDraggingStroke = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRangePositive(strokeWidthSlider, selected.strokeWidth || 0, SLIDER_STAGES.stroke, false);
-        drawPreview();
-    }
-});
-strokeWidthSlider.addEventListener('touchcancel', () => {
-    isDraggingStroke = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRangePositive(strokeWidthSlider, selected.strokeWidth || 0, SLIDER_STAGES.stroke, false);
-        drawPreview();
-    }
-});
-shapeWidthSlider.addEventListener('mousedown', () => { isDraggingWidth = true; });
-shapeWidthSlider.addEventListener('mouseup', () => {
+setupSliderDrag(shapeWidthSlider, () => { isDraggingWidth = true; }, () => {
     isDraggingWidth = false;
     const selected = getSelected();
     if (selected) {
@@ -1281,35 +1278,7 @@ shapeWidthSlider.addEventListener('mouseup', () => {
         drawPreview();
     }
 });
-shapeWidthSlider.addEventListener('mouseleave', () => {
-    if (isDraggingWidth) {
-        isDraggingWidth = false;
-        const selected = getSelected();
-        if (selected) {
-            updateSliderRangePositive(shapeWidthSlider, selected.width || 100, SLIDER_STAGES.size, false);
-            drawPreview();
-        }
-    }
-});
-shapeWidthSlider.addEventListener('touchstart', () => { isDraggingWidth = true; });
-shapeWidthSlider.addEventListener('touchend', () => {
-    isDraggingWidth = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRangePositive(shapeWidthSlider, selected.width || 100, SLIDER_STAGES.size, false);
-        drawPreview();
-    }
-});
-shapeWidthSlider.addEventListener('touchcancel', () => {
-    isDraggingWidth = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRangePositive(shapeWidthSlider, selected.width || 100, SLIDER_STAGES.size, false);
-        drawPreview();
-    }
-});
-shapeHeightSlider.addEventListener('mousedown', () => { isDraggingHeight = true; });
-shapeHeightSlider.addEventListener('mouseup', () => {
+setupSliderDrag(shapeHeightSlider, () => { isDraggingHeight = true; }, () => {
     isDraggingHeight = false;
     const selected = getSelected();
     if (selected) {
@@ -1317,62 +1286,7 @@ shapeHeightSlider.addEventListener('mouseup', () => {
         drawPreview();
     }
 });
-shapeHeightSlider.addEventListener('mouseleave', () => {
-    if (isDraggingHeight) {
-        isDraggingHeight = false;
-        const selected = getSelected();
-        if (selected) {
-            updateSliderRangePositive(shapeHeightSlider, selected.height || 100, SLIDER_STAGES.size, false);
-            drawPreview();
-        }
-    }
-});
-shapeHeightSlider.addEventListener('touchstart', () => { isDraggingHeight = true; });
-shapeHeightSlider.addEventListener('touchend', () => {
-    isDraggingHeight = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRangePositive(shapeHeightSlider, selected.height || 100, SLIDER_STAGES.size, false);
-        drawPreview();
-    }
-});
-shapeHeightSlider.addEventListener('touchcancel', () => {
-    isDraggingHeight = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRangePositive(shapeHeightSlider, selected.height || 100, SLIDER_STAGES.size, false);
-        drawPreview();
-    }
-});
-fontSizeSlider.addEventListener('mousedown', () => { isDraggingFontSize = true; });
-fontSizeSlider.addEventListener('mouseup', () => {
-    isDraggingFontSize = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRangePositive(fontSizeSlider, selected.fontSize || 50, SLIDER_STAGES.fontSize, false);
-        drawPreview();
-    }
-});
-fontSizeSlider.addEventListener('mouseleave', () => {
-    if (isDraggingFontSize) {
-        isDraggingFontSize = false;
-        const selected = getSelected();
-        if (selected) {
-            updateSliderRangePositive(fontSizeSlider, selected.fontSize || 50, SLIDER_STAGES.fontSize, false);
-            drawPreview();
-        }
-    }
-});
-fontSizeSlider.addEventListener('touchstart', () => { isDraggingFontSize = true; });
-fontSizeSlider.addEventListener('touchend', () => {
-    isDraggingFontSize = false;
-    const selected = getSelected();
-    if (selected) {
-        updateSliderRangePositive(fontSizeSlider, selected.fontSize || 50, SLIDER_STAGES.fontSize, false);
-        drawPreview();
-    }
-});
-fontSizeSlider.addEventListener('touchcancel', () => {
+setupSliderDrag(fontSizeSlider, () => { isDraggingFontSize = true; }, () => {
     isDraggingFontSize = false;
     const selected = getSelected();
     if (selected) {
@@ -1393,6 +1307,10 @@ function setOverlapPrevention(enabled) {
         syncUI();
     }
 }
+function setBackgroundColor(color) {
+    CONFIG.bgColor = color;
+    drawPreview();
+}
 // -------- デバッグ用グローバル公開 --------
 window.__editor = {
     currentFrame,
@@ -1412,6 +1330,8 @@ window.__editor = {
     stop: stopPlayback,
     reset: () => { stopPlayback(); currentFrame = 0; drawTimeline(); drawPreview(); },
     setOverlapPrevention,
+    setBackgroundColor,
+    setLayerCount,
     config: CONFIG,
     applyTheme,
     themes: THEMES,
@@ -1420,6 +1340,8 @@ window.__editor = {
 function init() {
     selectedId = null;
     totalTimeDisplay.textContent = formatTime(TOTAL_FRAMES);
+    currentLayerCount = CONFIG.layerCount;
+    layerCountInput.value = String(CONFIG.layerCount);
     applyTheme(CONFIG.theme);
     syncUI();
 }

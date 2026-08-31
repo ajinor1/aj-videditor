@@ -11,16 +11,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Hachi+Maru+Pop&family=Hina+Mincho&family=Noto+Sans+JP:wght@100..900&family=Noto+Serif+JP:wght@200..900&family=Yuji+Boku&display=swap" rel="stylesheet">
 
     <style>
-        /* ============================================================
-           ベース
-           ============================================================ */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        /* ---- CSS変数（テーマ用） ---- */
         :root {
             --bg-primary: #0d0d0d;
             --bg-secondary: #161616;
@@ -48,9 +44,6 @@
             width: 100%;
         }
 
-        /* ============================================================
-           ヘッダー
-           ============================================================ */
         header {
             display: flex;
             justify-content: space-between;
@@ -100,9 +93,7 @@
             border: 1px solid var(--border-color);
         }
 
-        /* ============================================================
-           オーバーレイ（設定ウィンドウ背景）
-           ============================================================ */
+        /* 設定オーバーレイ */
         .settings-overlay {
             position: fixed;
             top: 0;
@@ -118,7 +109,6 @@
             z-index: 1000;
             animation: fadeIn 0.25s ease;
         }
-
         .settings-overlay.active {
             display: flex;
         }
@@ -132,9 +122,6 @@
             }
         }
 
-        /* ============================================================
-           設定ウィンドウ
-           ============================================================ */
         .settings-window {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
@@ -167,13 +154,11 @@
             margin-bottom: 24px;
             flex-shrink: 0;
         }
-
         .settings-header h2 {
             font-size: 20px;
             font-weight: 600;
             color: var(--text-primary);
         }
-
         .settings-close {
             background: none;
             border: none;
@@ -196,7 +181,6 @@
             gap: 20px;
             padding-right: 4px;
         }
-
         .settings-body::-webkit-scrollbar {
             width: 4px;
         }
@@ -209,19 +193,16 @@
             border-radius: 4px;
         }
 
-        /* ---- 設定項目 ---- */
         .setting-group {
             display: flex;
             flex-direction: column;
             gap: 6px;
         }
-
         .setting-group label {
             font-size: 14px;
             font-weight: 500;
             color: var(--text-secondary);
         }
-
         .setting-group select,
         .setting-group input[type="checkbox"] {
             padding: 8px 12px;
@@ -233,22 +214,18 @@
             outline: none;
             transition: border 0.2s;
         }
-
         .setting-group select:focus {
             border-color: var(--accent);
         }
-
         .setting-group select option {
             background: var(--bg-primary);
             color: var(--text-primary);
         }
-
         .checkbox-group {
             display: flex;
             align-items: center;
             gap: 10px;
         }
-
         .checkbox-group input[type="checkbox"] {
             width: 18px;
             height: 18px;
@@ -256,7 +233,6 @@
             cursor: pointer;
             flex-shrink: 0;
         }
-
         .checkbox-group label {
             font-size: 14px;
             color: var(--text-primary);
@@ -271,7 +247,6 @@
             justify-content: flex-end;
             flex-shrink: 0;
         }
-
         .settings-footer .btn-close {
             padding: 8px 28px;
             border: none;
@@ -328,7 +303,7 @@
             border-radius: 12px;
             border: 1px solid var(--border-color);
             padding: 20px 20px;
-            max-height: 600px;
+            max-height: 650px;
             overflow-y: auto;
         }
 
@@ -559,6 +534,49 @@
             font-family: 'Consolas', monospace;
         }
 
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 6px 0;
+            min-width: 120px;
+            z-index: 50;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            margin-top: 4px;
+        }
+        .dropdown-menu.active {
+            display: block;
+        }
+        .dropdown-menu button {
+            display: block;
+            width: 100%;
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.15s;
+            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+        }
+        .dropdown-menu button:hover {
+            background: var(--bg-primary);
+        }
+        .dropdown-menu .divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 4px 12px;
+        }
+
         /* ============================================================
            タイムライン
            ============================================================ */
@@ -621,7 +639,8 @@
 
         .timeline-actions {
             display: flex;
-            gap: 6px;
+            align-items: center;
+            gap: 8px;
         }
 
         #timelineContainer {
@@ -780,9 +799,6 @@
             pointer-events: none;
         }
 
-        /* ============================================================
-           レスポンシブ
-           ============================================================ */
         @media (max-width: 1000px) {
             .top-section {
                 flex-direction: column;
@@ -850,9 +866,6 @@
 </head>
 <body>
     <div class="app">
-        <!-- ============================================================
-        ヘッダー
-        ============================================================ -->
         <header>
             <div class="header-left">
                 <h1>AJ Video Editor</h1>
@@ -861,37 +874,30 @@
             <span class="badge">alpha · local</span>
         </header>
 
-        <!-- ============================================================
-        設定オーバーレイ
-        ============================================================ -->
         <div class="settings-overlay" id="settingsOverlay">
             <div class="settings-window" id="settingsWindow">
                 <div class="settings-header">
                     <h2>⚙ Settings</h2>
                     <button class="settings-close" id="settingsClose">✕</button>
                 </div>
-
                 <div class="settings-body">
-                    <!-- テーマ選択 -->
                     <div class="setting-group">
                         <label for="themeSelect">Theme</label>
                         <select id="themeSelect">
-                            <option value="black">ブラック（シンプル）</option>
-                            <option value="black-red">レッド（暗）</option>
-                            <option value="black-blue">ブルー（暗）</option>
-                            <option value="black-green">グリーン（暗）</option>
-                            <option value="black-yellow">イエロー（暗）</option>
-                            <option value="black-purple">パープル（暗）</option>
                             <option value="white" selected>ホワイト（シンプル）</option>
                             <option value="white-red">レッド（明）</option>
                             <option value="white-blue">ブルー（明）</option>
                             <option value="white-green">グリーン（明）</option>
                             <option value="white-yellow">イエロー（明）</option>
                             <option value="white-purple">パープル（明）</option>
+                            <option value="black">ブラック（シンプル）</option>
+                            <option value="black-red">レッド（暗）</option>
+                            <option value="black-blue">ブルー（暗）</option>
+                            <option value="black-green">グリーン（暗）</option>
+                            <option value="black-yellow">イエロー（暗）</option>
+                            <option value="black-purple">パープル（暗）</option>
                         </select>
                     </div>
-
-                    <!-- 重なり防止（後で連動） -->
                     <div class="setting-group">
                         <div class="checkbox-group">
                             <input type="checkbox" id="overlapToggle" checked />
@@ -899,52 +905,92 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="settings-footer">
                     <button class="btn-close" id="settingsCloseBtn">Close</button>
                 </div>
             </div>
         </div>
 
-        <!-- ============================================================
-        メインコンテンツ
-        ============================================================ -->
         <div class="top-section">
             <div class="canvas-wrapper">
                 <canvas id="canvas" width="1920" height="1080"></canvas>
             </div>
 
-            <div class="properties">
+            <div class="properties" id="propertiesPanel">
+                <!-- Type -->
                 <div class="control-group">
-                    <label>Text</label>
-                    <textarea id="textInput" rows="1"></textarea>
+                    <label>Type</label>
+                    <span id="typeDisplay" style="font-size:13px;color:var(--text-secondary);">-</span>
                 </div>
 
-                <div class="control-group">
-                    <label>Font</label>
-                    <select id="fontSelect">
-                        <option value='"Hiragino Sans", "Microsoft YaHei", sans-serif'>デフォルト</option>
-                        <option value='"Hina Mincho", serif'>Hina Mincho</option>
-                        <option value='"Hachi Maru Pop", serif'>Hachi Maru Pop</option>
-                        <option value='"Noto Sans JP", sans-serif'>Noto Sans JP</option>
-                        <option value='"Noto Serif JP", serif'>Noto Serif JP</option>
-                        <option value='"Yuji Boku", serif'>Yuji Boku</option>
-                    </select>
+                <!-- テキスト用 -->
+                <div id="textProperties">
+                    <div class="control-group">
+                        <label>Text</label>
+                        <textarea id="textInput" rows="1"></textarea>
+                    </div>
+                    <div class="control-group">
+                        <label>Font</label>
+                        <select id="fontSelect">
+                            <option value='"Hiragino Sans", "Microsoft YaHei", sans-serif'>デフォルト</option>
+                            <option value='"Hina Mincho", serif'>Hina Mincho</option>
+                            <option value='"Hachi Maru Pop", serif'>Hachi Maru Pop</option>
+                            <option value='"Noto Sans JP", sans-serif'>Noto Sans JP</option>
+                            <option value='"Noto Serif JP", serif'>Noto Serif JP</option>
+                            <option value='"Yuji Boku", serif'>Yuji Boku</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Size</label>
+                        <input type="range" id="fontSize" min="0" max="100" value="50" />
+                        <span class="value" id="fontSizeLabel">--</span>
+                    </div>
+                    <div class="control-group">
+                        <label>Color</label>
+                        <input type="color" id="colorPicker" value="#ffffff" />
+                    </div>
                 </div>
 
-                <div class="control-group">
-                    <label>Size</label>
-                    <input type="range" id="fontSize" min="0" max="1000" value="50" />
-                    <span class="value" id="fontSizeLabel">--</span>
-                </div>
-
-                <div class="control-group">
-                    <label>Color</label>
-                    <input type="color" id="colorPicker" value="#ffffff" />
+                <!-- 図形用 -->
+                <div id="shapeProperties" style="display:none;">
+                    <div class="control-group">
+                        <label>Shape</label>
+                        <select id="shapeTypeSelect">
+                            <option value="rectangle">四角形</option>
+                            <option value="triangle">三角形</option>
+                            <option value="circle">円</option>
+                            <option value="pie">扇形</option>
+                            <option value="arrow">矢印</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Fill</label>
+                        <input type="color" id="fillColorPicker" value="#ffffff" />
+                    </div>
+                    <div class="control-group">
+                        <label>Stroke</label>
+                        <input type="color" id="strokeColorPicker" value="#ffffff" />
+                    </div>
+                    <div class="control-group">
+                        <label>Stroke W</label>
+                        <input type="range" id="strokeWidthSlider" min="0" max="100" value="0" step="1" />
+                        <span class="value" id="strokeWidthLabel">0px</span>
+                    </div>
+                    <div class="control-group">
+                        <label>Width</label>
+                        <input type="range" id="shapeWidthSlider" min="0" max="100" value="100" step="1" />
+                        <span class="value" id="shapeWidthLabel">100px</span>
+                    </div>
+                    <div class="control-group">
+                        <label>Height</label>
+                        <input type="range" id="shapeHeightSlider" min="0" max="100" value="100" step="1" />
+                        <span class="value" id="shapeHeightLabel">100px</span>
+                    </div>
                 </div>
 
                 <hr class="separator" />
 
+                <!-- X -->
                 <div class="control-group">
                     <label>X</label>
                     <input type="range" id="xPos" min="-500" max="500" value="0" step="1" />
@@ -954,6 +1000,7 @@
                     </div>
                 </div>
 
+                <!-- Y -->
                 <div class="control-group">
                     <label>Y</label>
                     <input type="range" id="yPos" min="-500" max="500" value="0" step="1" />
@@ -963,8 +1010,20 @@
                     </div>
                 </div>
 
+                <!-- Rotation -->
+                <div class="control-group">
+                    <label>Rotation</label>
+                    <input type="range" id="rotationSlider" min="-180" max="180" value="0" step="1" />
+                    <div class="coord-input">
+                        <span>R:</span>
+                        <input type="number" id="rotationNumber" value="0" min="-1440" max="1440" step="1" />
+                        <span style="font-size:12px;color:#666;">°</span>
+                    </div>
+                </div>
+
                 <hr class="separator" />
 
+                <!-- Start / Duration -->
                 <div class="control-group">
                     <label>Start</label>
                     <div class="time-input-group">
@@ -972,7 +1031,6 @@
                         <span class="unit">fr</span>
                     </div>
                 </div>
-
                 <div class="control-group">
                     <label>Duration</label>
                     <div class="time-input-group">
@@ -994,7 +1052,14 @@
                     </span>
                 </div>
                 <div class="timeline-actions">
-                    <button class="btn-primary btn-sm" id="addBtn">+ Add</button>
+                    <div class="dropdown" id="addDropdown">
+                        <button class="btn-primary btn-sm" id="addBtn">+ Add ▼</button>
+                        <div class="dropdown-menu" id="addDropdownMenu">
+                            <button data-type="text">📝 テキスト</button>
+                            <div class="divider"></div>
+                            <button data-type="shape">⬜ 図形</button>
+                        </div>
+                    </div>
                     <button class="btn-primary btn-sm btn-danger" id="deleteBtn">×</button>
                 </div>
             </div>

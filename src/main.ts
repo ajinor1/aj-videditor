@@ -1,6 +1,5 @@
 // ============================================================
 // AJ Video Editor - エントリーポイント
-// フェーズ12: プレビュー上でクリップをドラッグ移動
 // ============================================================
 
 // -------- 定数 --------
@@ -792,7 +791,6 @@ function setupPreviewDrag(): void {
 }
 
 // -------- タイムライン描画 --------
-// ☆
 function drawTimeline(): void {
     const containerWidth = timelineContainer.clientWidth - 4;
     const visibleDuration = getVisibleDuration();
@@ -957,7 +955,7 @@ function drawTimeline(): void {
     currentTimeDisplay.textContent = formatTime(currentFrame);
     totalTimeDisplay.textContent = formatTime(TIMELINE_DURATION * CONFIG.fps);
 
-     // ☆ -------- ズームコントロールを追加 --------
+     // -------- ズームコントロールを追加 --------
     const timelineControls = document.querySelector('.timeline-controls');
     if (timelineControls && !document.getElementById('zoomControls')) {
         const zoomControls = document.createElement('div');
@@ -1016,7 +1014,6 @@ function onClipDragMove(e: MouseEvent): void {
     const container = timelineContainer;
     const rect = container.getBoundingClientRect();
     const containerWidth = container.clientWidth - 4;
-    // ☆
     const pixelsPerSecond = getPixelsPerSecond(containerWidth);
 
     // 横方向のドラッグでフレームを変更
@@ -1102,7 +1099,6 @@ function updatePropertyUI(clip: Clip): void {
 }
 
 // -------- シーク --------
-// ☆
 function getFrameFromMouseEvent(e: MouseEvent): number {
     const container = timelineContainer;
     const rect = container.getBoundingClientRect();
@@ -1924,7 +1920,7 @@ function setBackgroundColor(color: string): void {
     //findAvailableLayer, // 空きレイヤー探索関数を公開
 };
 
-// ☆ -------- ズームイベント --------
+// -------- ズームイベント --------
 // ズームボタン（ボタンは動的に生成されるので、イベントは親要素に委譲）
 document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
@@ -1974,7 +1970,7 @@ function resizeCanvas(): void {
     canvas.style.height = `${Math.floor(h)}px`;
 }
 window.addEventListener('resize', resizeCanvas);
-//　☆ ウインドウリサイズ時にタイムラインも再描画
+// ウインドウリサイズ時にタイムラインも再描画
 window.addEventListener('resize', () => {
     drawTimeline();
 });

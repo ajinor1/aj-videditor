@@ -659,7 +659,6 @@ function setupPreviewDrag() {
     canvas.addEventListener('mousedown', onPointerDown);
 }
 // -------- タイムライン描画 --------
-// ☆
 function drawTimeline() {
     const containerWidth = timelineContainer.clientWidth - 4;
     const visibleDuration = getVisibleDuration();
@@ -804,7 +803,7 @@ function drawTimeline() {
     }
     currentTimeDisplay.textContent = formatTime(currentFrame);
     totalTimeDisplay.textContent = formatTime(TIMELINE_DURATION * CONFIG.fps);
-    // ☆ -------- ズームコントロールを追加 --------
+    // -------- ズームコントロールを追加 --------
     const timelineControls = document.querySelector('.timeline-controls');
     if (timelineControls && !document.getElementById('zoomControls')) {
         const zoomControls = document.createElement('div');
@@ -862,7 +861,6 @@ function onClipDragMove(e) {
     const container = timelineContainer;
     const rect = container.getBoundingClientRect();
     const containerWidth = container.clientWidth - 4;
-    // ☆
     const pixelsPerSecond = getPixelsPerSecond(containerWidth);
     // 横方向のドラッグでフレームを変更
     const deltaX = (e.clientX - dragStartMouseX) / pixelsPerSecond;
@@ -942,7 +940,6 @@ function updatePropertyUI(clip) {
     durationInput.value = String(clip.duration);
 }
 // -------- シーク --------
-// ☆
 function getFrameFromMouseEvent(e) {
     const container = timelineContainer;
     const rect = container.getBoundingClientRect();
@@ -1714,7 +1711,7 @@ window.__editor = {
     //resolveOverlap,     // 重なり解消関数を公開
     //findAvailableLayer, // 空きレイヤー探索関数を公開
 };
-// ☆ -------- ズームイベント --------
+// -------- ズームイベント --------
 // ズームボタン（ボタンは動的に生成されるので、イベントは親要素に委譲）
 document.addEventListener('click', (e) => {
     const target = e.target;
@@ -1760,7 +1757,7 @@ function resizeCanvas() {
     canvas.style.height = `${Math.floor(h)}px`;
 }
 window.addEventListener('resize', resizeCanvas);
-//　☆ ウインドウリサイズ時にタイムラインも再描画
+//　ウインドウリサイズ時にタイムラインも再描画
 window.addEventListener('resize', () => {
     drawTimeline();
 });

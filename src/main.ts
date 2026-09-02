@@ -1,6 +1,5 @@
 // ============================================================
 // AJ Video Editor - エントリーポイント
-// フェーズ12: プレビュー上でクリップをドラッグ移動
 // ============================================================
 
 // -------- 定数 --------
@@ -221,11 +220,8 @@ const shapeTypeSelect = document.getElementById('shapeTypeSelect') as HTMLSelect
 const fillColorPicker = document.getElementById('fillColorPicker') as HTMLInputElement;
 const strokeColorPicker = document.getElementById('strokeColorPicker') as HTMLInputElement;
 const strokeWidthSlider = document.getElementById('strokeWidthSlider') as HTMLInputElement;
-const strokeWidthLabel = document.getElementById('strokeWidthLabel') as HTMLSpanElement;
 const shapeWidthSlider = document.getElementById('shapeWidthSlider') as HTMLInputElement;
-const shapeWidthLabel = document.getElementById('shapeWidthLabel') as HTMLSpanElement;
 const shapeHeightSlider = document.getElementById('shapeHeightSlider') as HTMLInputElement;
-const shapeHeightLabel = document.getElementById('shapeHeightLabel') as HTMLSpanElement;
 
 const xSlider = document.getElementById('xPos') as HTMLInputElement;
 const xNumber = document.getElementById('xNumber') as HTMLInputElement;
@@ -236,8 +232,6 @@ const rotationNumber = document.getElementById('rotationNumber') as HTMLInputEle
 const startInput = document.getElementById('startInput') as HTMLInputElement;
 const durationInput = document.getElementById('durationInput') as HTMLInputElement;
 
-const addBtn = document.getElementById('addBtn') as HTMLButtonElement;
-const addDropdownMenu = document.getElementById('addDropdownMenu') as HTMLDivElement;
 const deleteBtn = document.getElementById('deleteBtn') as HTMLButtonElement;
 const timelineContainer = document.getElementById('timelineContainer') as HTMLDivElement;
 
@@ -257,7 +251,7 @@ const bgColorPicker = document.getElementById('bgColorPicker') as HTMLInputEleme
 const resolutionSelect = document.getElementById('resolutionSelect') as HTMLSelectElement;
 const fpsSelect = document.getElementById('fpsSelect') as HTMLSelectElement;
 
-// ★ ズーム関連DOM（後で生成するので変数だけ先に宣言）
+// ズーム関連DOM（後で生成するので変数だけ先に宣言）
 let zoomInBtn: HTMLButtonElement;
 let zoomOutBtn: HTMLButtonElement;
 let zoomLevelDisplay: HTMLSpanElement;
@@ -273,6 +267,11 @@ const resizeHandleVertical = document.getElementById('resizeHandleVertical') as 
 const canvasWrapper = document.getElementById('canvasWrapper') as HTMLDivElement;
 const propertiesPanel = document.getElementById('propertiesPanel') as HTMLDivElement;
 const bottomSection = document.getElementById('bottomSection') as HTMLDivElement;
+
+// ★ 図形用数値入力
+const strokeWidthNumber = document.getElementById('strokeWidthNumber') as HTMLInputElement;
+const shapeWidthNumber = document.getElementById('shapeWidthNumber') as HTMLInputElement;
+const shapeHeightNumber = document.getElementById('shapeHeightNumber') as HTMLInputElement;
 
 // -------- キャンバスサイズ --------
 const MAX_COORD = 8000;
@@ -330,18 +329,6 @@ let resizeStartWidth = 0;
 let resizeStartHeight = 0;
 const MIN_PANEL_WIDTH = 200;
 const MIN_TIMELINE_HEIGHT = 80;
-
-let isDropdownOpen = false;
-
-function toggleDropdown(): void {
-    isDropdownOpen = !isDropdownOpen;
-    addDropdownMenu.classList.toggle('active', isDropdownOpen);
-}
-
-function closeDropdown(): void {
-    isDropdownOpen = false;
-    addDropdownMenu.classList.remove('active');
-}
 
 // -------- タブ切り替え --------
 function setupSettingsTabs(): void {
@@ -440,13 +427,14 @@ function setLayerCount(newCount: number): void {
 
 // -------- 図形描画 --------
 function drawShape(ctx: CanvasRenderingContext2D, clip: Clip): void {
-    const { shapeType, fillColor, strokeColor, strokeWidth, width, height, rotation } = clip;
+    const { shapeType, fillColor, strokeColor, strokeWidth, width, height, rotation, } = clip;
     if (!shapeType || !width || !height) return;
 
     const w = width;
     const h = height;
 
     ctx.save();
+    // 原点をクリップの中心に移動,回転
     ctx.rotate(rotation * Math.PI / 180);
 
     ctx.beginPath();
@@ -672,6 +660,36 @@ function drawPreview(): void {
     }
 }
 
+// 共通の座標変換関数
+function getCanvasCoords(e: MouseEvent): { x: number, y: number } {
+    const rect = canvas.getBoundingClientRect();
+
+    const canvasAspect = canvas.width / canvas.height;
+    const rectAspect = rect.width / rect.height;
+
+    let drawWidth, drawHeight;
+    let offsetX = 0, offsetY = 0;
+
+    if (canvasAspect > rectAspect) {
+        drawWidth = rect.width;
+        drawHeight = rect.width / canvasAspect;
+        offsetX = 0;
+        offsetY = (rect.height - drawHeight) / 2;
+    } else {
+        drawHeight = rect.height;
+        drawWidth = rect.height * canvasAspect;
+        offsetX = (rect.width - drawWidth) / 2;
+        offsetY = 0;
+    }
+
+    const scale = canvas.width / drawWidth;
+
+    return {
+        x: (e.clientX - rect.left - offsetX) * scale,
+        y: (e.clientY - rect.top - offsetY) * scale
+    };
+}
+
 // -------- プレビュードラッグ --------
 function getClipAtPosition(cx: number, cy: number): Clip | null {
     const visibleClips = getClipsAtFrame(currentFrame);
@@ -720,11 +738,9 @@ function setupPreviewDrag(): void {
     let clipStartY = 0;
 
     const onPointerDown = (e: MouseEvent) => {
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const canvasX = (e.clientX - rect.left) * scaleX;
-        const canvasY = (e.clientY - rect.top) * scaleY;
+        const pos = getCanvasCoords(e);
+        const canvasX = pos.x;
+        const canvasY = pos.y;
 
         const clip = getClipAtPosition(canvasX, canvasY);
         if (!clip) return;
@@ -734,8 +750,8 @@ function setupPreviewDrag(): void {
 
         isPointerDown = true;
         pointerDownClip = clip;
-        pointerStartX = e.clientX;
-        pointerStartY = e.clientY;
+        pointerStartX = canvasX;
+        pointerStartY = canvasY;
         clipStartX = clip.x;
         clipStartY = clip.y;
 
@@ -747,16 +763,16 @@ function setupPreviewDrag(): void {
     const onPointerMove = (e: MouseEvent) => {
         if (!isPointerDown || !pointerDownClip) return;
 
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
+        const pos = getCanvasCoords(e);
+        const canvasX = pos.x;
+        const canvasY = pos.y;
 
-        const deltaX = (e.clientX - pointerStartX) * scaleX;
-        const deltaY = (e.clientY - pointerStartY) * scaleY;
-
-        if (!isDraggingPreview && (Math.abs(deltaX) < 3 && Math.abs(deltaY) < 3)) return;
+        if (!isDraggingPreview && (Math.abs(canvasX - pointerStartX) < 3 && Math.abs(canvasY - pointerStartY) < 3)) return;
 
         isDraggingPreview = true;
+
+        const deltaX = canvasX - pointerStartX;
+        const deltaY = canvasY - pointerStartY;
 
         const newX = Math.round(clipStartX + deltaX);
         const newY = Math.round(clipStartY + deltaY);
@@ -792,7 +808,6 @@ function setupPreviewDrag(): void {
 }
 
 // -------- タイムライン描画 --------
-// ☆
 function drawTimeline(): void {
     const containerWidth = timelineContainer.clientWidth - 4;
     const visibleDuration = getVisibleDuration();
@@ -821,7 +836,7 @@ function drawTimeline(): void {
 
     for (let layerId = 1; layerId <= currentLayerCount; layerId++) {
         const layerLabel = String(layerId).padStart(2, '0');
-        html += `<div class="timeline-track" style="height:${TIMELINE_HEIGHT}px;">`;
+        html += `<div class="timeline-track" style="height:${TIMELINE_HEIGHT}px; width:${totalWidth}px; min-width:100%;">`;
         html += `<div class="timeline-track-label">LAYER ${layerLabel}</div>`;
         html += `<div class="timeline-track-area" style="position:relative; flex:1; height:100%;">`;
 
@@ -957,7 +972,7 @@ function drawTimeline(): void {
     currentTimeDisplay.textContent = formatTime(currentFrame);
     totalTimeDisplay.textContent = formatTime(TIMELINE_DURATION * CONFIG.fps);
 
-     // ☆ -------- ズームコントロールを追加 --------
+     // -------- ズームコントロールを追加 --------
     const timelineControls = document.querySelector('.timeline-controls');
     if (timelineControls && !document.getElementById('zoomControls')) {
         const zoomControls = document.createElement('div');
@@ -1016,7 +1031,6 @@ function onClipDragMove(e: MouseEvent): void {
     const container = timelineContainer;
     const rect = container.getBoundingClientRect();
     const containerWidth = container.clientWidth - 4;
-    // ☆
     const pixelsPerSecond = getPixelsPerSecond(containerWidth);
 
     // 横方向のドラッグでフレームを変更
@@ -1102,7 +1116,6 @@ function updatePropertyUI(clip: Clip): void {
 }
 
 // -------- シーク --------
-// ☆
 function getFrameFromMouseEvent(e: MouseEvent): number {
     const container = timelineContainer;
     const rect = container.getBoundingClientRect();
@@ -1318,11 +1331,12 @@ function syncUI(): void {
             fillColorPicker.value = selected.fillColor || '#ffffff';
             strokeColorPicker.value = selected.strokeColor || '#ffffff';
             strokeWidthSlider.value = String(selected.strokeWidth || 0);
-            strokeWidthLabel.textContent = `${selected.strokeWidth || 0}px`;
+            // ★ 数値入力にも反映
+            strokeWidthNumber.value = String(selected.strokeWidth || 0);
             shapeWidthSlider.value = String(selected.width || 100);
-            shapeWidthLabel.textContent = `${selected.width || 100}px`;
+            shapeWidthNumber.value = String(selected.width || 100);
             shapeHeightSlider.value = String(selected.height || 100);
-            shapeHeightLabel.textContent = `${selected.height || 100}px`;
+            shapeHeightNumber.value = String(selected.height || 100);
         }
 
         xSlider.value = String(selected.x);
@@ -1370,14 +1384,13 @@ function autoResizeTextarea(): void {
 
 // -------- クリップ追加 --------
 function addClip(type: ClipType): void {
-    closeDropdown();
 
     const startFrame = currentFrame;
     const duration = DEFAULT_CLIP_DURATION;
     const layerId = findAvailableLayer(startFrame, duration);
 
     if (layerId === null) {
-        alert('All layers are full at this time position. Please move or delete existing clips.');
+        alert('これ以上クリップを追加できません。レイヤー数を増やすか、既存のクリップを移動してください。');
         return;
     }
 
@@ -1459,9 +1472,6 @@ function updateSelected(): void {
     rotationNumber.value = String(selected.rotation);
 
     fontSizeLabel.textContent = `${selected.fontSize || 50}px`;
-    strokeWidthLabel.textContent = `${selected.strokeWidth || 0}px`;
-    shapeWidthLabel.textContent = `${selected.width || 100}px`;
-    shapeHeightLabel.textContent = `${selected.height || 100}px`;
 
     autoResizeTextarea();
     drawPreview();
@@ -1508,6 +1518,7 @@ function updateDuration(): void {
 // -------- 数値入力の共通設定（ループ化） --------
 function setupAllNumberInputs(): void {
     const configs = [
+        // ===== X座標 =====
         {
             input: xNumber,
             slider: xSlider,
@@ -1524,6 +1535,7 @@ function setupAllNumberInputs(): void {
                 drawPreview();
             }
         },
+        // ===== Y座標 =====
         {
             input: yNumber,
             slider: ySlider,
@@ -1540,6 +1552,7 @@ function setupAllNumberInputs(): void {
                 drawPreview();
             }
         },
+        // ===== 回転 =====
         {
             input: rotationNumber,
             slider: rotationSlider,
@@ -1556,12 +1569,13 @@ function setupAllNumberInputs(): void {
                 drawPreview();
             }
         },
+        // ===== Start =====
         {
             input: startInput,
             slider: startInput,
             config: NUMBER_CONFIGS.start,
             getIsDragging: () => false,
-            updateFn: () => {},
+            updateFn: () => { },
             onCommit: (val: number) => {
                 const selected = getSelected();
                 if (!selected) return;
@@ -1576,12 +1590,13 @@ function setupAllNumberInputs(): void {
                 drawPreview();
             }
         },
+        // ===== Duration =====
         {
             input: durationInput,
             slider: durationInput,
             config: NUMBER_CONFIGS.duration,
             getIsDragging: () => false,
-            updateFn: () => {},
+            updateFn: () => { },
             onCommit: (val: number) => {
                 const selected = getSelected();
                 if (!selected) return;
@@ -1595,6 +1610,57 @@ function setupAllNumberInputs(): void {
                 }
                 durationInput.value = String(selected.duration);
                 drawTimeline();
+                drawPreview();
+            }
+        },
+        // ===== ★ 追加：Stroke W =====
+        {
+            input: strokeWidthNumber,
+            slider: strokeWidthSlider,
+            config: NUMBER_CONFIGS.stroke,
+            getIsDragging: () => isDraggingStroke,
+            updateFn: (val: number) => updateSliderRangePositive(strokeWidthSlider, val, SLIDER_STAGES.stroke, false),
+            onCommit: (val: number) => {
+                const selected = getSelected();
+                if (!selected || selected.type !== 'shape') return;
+                selected.strokeWidth = val;
+                strokeWidthSlider.value = String(val);
+                strokeWidthNumber.value = String(val);
+                if (!isDraggingStroke) updateSliderRangePositive(strokeWidthSlider, val, SLIDER_STAGES.stroke, false);
+                drawPreview();
+            }
+        },
+        // ===== ★ 追加：Width =====
+        {
+            input: shapeWidthNumber,
+            slider: shapeWidthSlider,
+            config: NUMBER_CONFIGS.width,
+            getIsDragging: () => isDraggingWidth,
+            updateFn: (val: number) => updateSliderRangePositive(shapeWidthSlider, val, SLIDER_STAGES.size, false),
+            onCommit: (val: number) => {
+                const selected = getSelected();
+                if (!selected || selected.type !== 'shape') return;
+                selected.width = val;
+                shapeWidthSlider.value = String(val);
+                shapeWidthNumber.value = String(val);
+                if (!isDraggingWidth) updateSliderRangePositive(shapeWidthSlider, val, SLIDER_STAGES.size, false);
+                drawPreview();
+            }
+        },
+        // ===== ★ 追加：Height =====
+        {
+            input: shapeHeightNumber,
+            slider: shapeHeightSlider,
+            config: NUMBER_CONFIGS.height,
+            getIsDragging: () => isDraggingHeight,
+            updateFn: (val: number) => updateSliderRangePositive(shapeHeightSlider, val, SLIDER_STAGES.size, false),
+            onCommit: (val: number) => {
+                const selected = getSelected();
+                if (!selected || selected.type !== 'shape') return;
+                selected.height = val;
+                shapeHeightSlider.value = String(val);
+                shapeHeightNumber.value = String(val);
+                if (!isDraggingHeight) updateSliderRangePositive(shapeHeightSlider, val, SLIDER_STAGES.size, false);
                 drawPreview();
             }
         }
@@ -1751,22 +1817,17 @@ fpsSelect.addEventListener('change', () => {
 // -------- タブ切り替え設定 --------
 setupSettingsTabs();
 
-// -------- ドロップダウンメニュー --------
-addBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleDropdown();
+//-------- クリップ追加ボタン --------
+// テキスト追加ボタン
+const addTextBtn = document.getElementById('addTextBtn') as HTMLButtonElement;
+addTextBtn.addEventListener('click', () => {
+    addClip('text');
 });
 
-document.addEventListener('click', () => {
-    if (isDropdownOpen) closeDropdown();
-});
-
-addDropdownMenu.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const target = e.target as HTMLButtonElement;
-    if (target.dataset.type) {
-        addClip(target.dataset.type as ClipType);
-    }
+// 図形追加ボタン
+const addShapeBtn = document.getElementById('addShapeBtn') as HTMLButtonElement;
+addShapeBtn.addEventListener('click', () => {
+    addClip('shape');
 });
 
 // -------- イベント登録 --------
@@ -1924,7 +1985,7 @@ function setBackgroundColor(color: string): void {
     //findAvailableLayer, // 空きレイヤー探索関数を公開
 };
 
-// ☆ -------- ズームイベント --------
+// -------- ズームイベント --------
 // ズームボタン（ボタンは動的に生成されるので、イベントは親要素に委譲）
 document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
@@ -1935,12 +1996,23 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// マウスホイール（Ctrl + ホイールでズーム）
+// ★ マウスホイール（Ctrl + ホイールでズーム、それ以外は横スクロール）
 timelineContainer.addEventListener('wheel', (e) => {
     if (e.ctrlKey || e.metaKey) {
+        // Ctrlキー（またはCommandキー）を押しながらホイール → ズーム
         e.preventDefault();
         const factor = e.deltaY > 0 ? 0.9 : 1.1;
         zoomTimeline(factor);
+    } else if (e.altKey) {
+        // Altキーを押しながらホイール → 縦スクロール
+        e.preventDefault();
+        const scrollAmount = e.deltaY * 0.3; // スクロール速度
+        timelineContainer.scrollTop += scrollAmount;  // ← timelineContainerに変更！
+    } else {
+        // 通常時のホイール → 横スクロール
+        e.preventDefault();
+        const scrollAmount = e.deltaY * 1.0;  // スクロール速度
+        timelineContainer.scrollLeft += scrollAmount;
     }
 }, { passive: false });
 
@@ -1953,7 +2025,7 @@ function init(): void {
     applyTheme(CONFIG.theme);
     syncUI();
 
-    bottomSection.style.height = '250px';
+    bottomSection.style.height = '400px';
     bottomSection.style.minHeight = `${MIN_TIMELINE_HEIGHT}px`;
 }
 
@@ -1974,7 +2046,7 @@ function resizeCanvas(): void {
     canvas.style.height = `${Math.floor(h)}px`;
 }
 window.addEventListener('resize', resizeCanvas);
-//　☆ ウインドウリサイズ時にタイムラインも再描画
+//　-------- ウインドウリサイズ時にタイムラインも再描画 --------
 window.addEventListener('resize', () => {
     drawTimeline();
 });

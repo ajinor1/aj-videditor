@@ -715,6 +715,10 @@
             flex-direction: column;
             min-height: 100px;
             flex-shrink: 0;
+
+            /* 縦スクロールに対応 */
+            overflow-y: auto;
+            max-height: 600px;
         }
 
         .timeline-header {
@@ -774,7 +778,7 @@
         #timelineContainer {
             width: 100%;
             overflow-x: auto;
-            overflow-y: hidden;
+            overflow-y: auto;
             background: var(--bg-primary);
             border-radius: 6px;
             border: 1px solid var(--border-color);
@@ -1265,23 +1269,35 @@
                             <label>Stroke</label>
                             <input type="color" id="strokeColorPicker" value="#ffffff" />
                         </div>
+                    
                         <div class="control-group">
                             <label>Stroke W</label>
                             <input type="range" id="strokeWidthSlider" min="0" max="100" value="0" step="1" />
-                            <span class="value" id="strokeWidthLabel">0px</span>
+                            <div class="coord-input">
+                                <input type="number" id="strokeWidthNumber" value="0" min="0" max="3200" />
+                                <span style="font-size:12px;color:#666;">px</span>
+                            </div>
                         </div>
+                    
                         <div class="control-group">
                             <label>Width</label>
                             <input type="range" id="shapeWidthSlider" min="0" max="100" value="100" step="1" />
-                            <span class="value" id="shapeWidthLabel">100px</span>
+                            <div class="coord-input">
+                                <input type="number" id="shapeWidthNumber" value="100" min="0" max="3200" />
+                                <span style="font-size:12px;color:#666;">px</span>
+                            </div>
                         </div>
+                    
                         <div class="control-group">
                             <label>Height</label>
                             <input type="range" id="shapeHeightSlider" min="0" max="100" value="100" step="1" />
-                            <span class="value" id="shapeHeightLabel">100px</span>
+                            <div class="coord-input">
+                                <input type="number" id="shapeHeightNumber" value="100" min="0" max="3200" />
+                                <span style="font-size:12px;color:#666;">px</span>
+                            </div>
                         </div>
                     </div>
-
+                    
                     <hr class="separator" />
 
                     <div class="control-group">
@@ -1342,14 +1358,8 @@
                         </span>
                     </div>
                     <div class="timeline-actions">
-                        <div class="dropdown" id="addDropdown">
-                            <button class="btn-primary btn-sm" id="addBtn">+ Add ▼</button>
-                            <div class="dropdown-menu" id="addDropdownMenu">
-                                <button data-type="text">📝 テキスト</button>
-                                <div class="divider"></div>
-                                <button data-type="shape">⬜ 図形</button>
-                            </div>
-                        </div>
+                        <button class="btn-primary btn-sm" id="addTextBtn">📝 テキスト</button>
+                        <button class="btn-primary btn-sm" id="addShapeBtn">⬜ 図形</button>
                         <button class="btn-primary btn-sm btn-danger" id="deleteBtn">×</button>
                     </div>
                 </div>

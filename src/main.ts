@@ -1454,13 +1454,19 @@ function updateSelected(): void {
         selected.fontFamily = fontSelect.value;
         selected.fontSize = parseFloat(fontSizeSlider.value) || 50;
         selected.color = colorPicker.value;
-    } else {
+    } else if (selected.type === 'shape') {
         selected.shapeType = shapeTypeSelect.value as ShapeType;
         selected.fillColor = fillColorPicker.value;
         selected.strokeColor = strokeColorPicker.value;
         selected.strokeWidth = parseFloat(strokeWidthSlider.value) || 0;
         selected.width = parseFloat(shapeWidthSlider.value) || 100;
         selected.height = parseFloat(shapeHeightSlider.value) || 100;
+
+        // selected.typeがtextだった場合、width,height,strokeの項目が存在しないため、selected.typeがshapeの場合のみ更新する
+        strokeWidthNumber.value = String(selected.strokeWidth);
+        shapeWidthNumber.value = String(selected.width);
+        shapeHeightNumber.value = String(selected.height);
+
     }
 
     selected.x = parseFloat(xSlider.value) || 0;

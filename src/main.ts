@@ -312,6 +312,14 @@ let dragStartFrame = 0;
 let dragStartLayer = 0;
 let dragClipElement: HTMLElement | null = null;
 
+// クリップサイズ変更用
+let isResizingClip = false;
+let resizeClipId: string | null = null;
+let resizeEdge: 'left' | 'right' | null = null;
+let resizeStartMouseX = 0;
+let resizeStartStartFrame = 0;
+let resizeStartDuration = 0;
+
 // プレビュードラッグ用
 let isDraggingPreview = false;
 let dragPreviewClipId: string | null = null;
@@ -855,8 +863,12 @@ function drawTimeline(): void {
                 ? (clip.text || 'Text').replace(/\n/g, ' ')
                 : (clip.shapeType || 'shape');
 
+
+            const endFrame = clip.startFrame + clip.duration;
             html += `<div class="timeline-clip ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''}" 
                           data-clip-id="${clip.id}"
+                          data-startframe="${clip.startFrame}"
+                          data-endframe="${endFrame}"
                           style="left:${left}px; width:${Math.max(width, 4)}px; background:${color}; opacity:${opacity};">
                         <span class="timeline-clip-label">${label}</span>
                      </div>`;
@@ -890,10 +902,49 @@ function drawTimeline(): void {
     });
 
     document.querySelectorAll('.timeline-clip').forEach(el => {
-        el.addEventListener('mousedown', (e) => {
+        // ★ 修正箇所: リサイズかドラッグかを判定
+        el.addEventListener('mousedown', (e: MouseEvent) => {
             const id = el.getAttribute('data-clip-id');
-            if (id) {
+            if (!id) return;
+    
+            const rect = el.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const elWidth = rect.width;
+            const edgeThreshold = 8; // 端から8px以内をリサイズと判定
+    
+            // 左端か右端かを判定
+            if (mouseX < edgeThreshold) {
+                // 左端リサイズ
+                startResizeClip(e, id, 'left');
+            } else if (mouseX > elWidth - edgeThreshold) {
+                // 右端リサイズ
+                startResizeClip(e, id, 'right');
+            } else {
+                // それ以外は通常のドラッグ
                 startClipDrag(e, id);
+            }
+        });
+    });
+
+    // ★ 追加: ホバー時にカーソルを変更（リサイズ可能な端を示す）
+    document.querySelectorAll('.timeline-clip').forEach(el => {
+        el.addEventListener('mousemove', (e: MouseEvent) => {
+            if (isResizingClip || isDraggingClip) return;
+            const rect = el.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const elWidth = rect.width;
+            const edgeThreshold = 8;
+    
+            if (mouseX < edgeThreshold || mouseX > elWidth - edgeThreshold) {
+                el.style.cursor = 'ew-resize';
+            } else {
+                el.style.cursor = 'grab';
+            }
+        });
+    
+        el.addEventListener('mouseleave', () => {
+            if (!isResizingClip && !isDraggingClip) {
+                el.style.cursor = 'grab';
             }
         });
     });
@@ -1004,6 +1055,122 @@ function drawTimeline(): void {
 }
 
 // -------- タイムライン操作 --------
+// -------- クリップリサイズ --------
+function startResizeClip(e: MouseEvent, clipId: string, edge: 'left' | 'right'): void {
+    if (isDraggingClip || isResizingClip) return;
+    const clip = clips.find(c => c.id === clipId);
+    if (!clip) return;
+    if (isPlaying) stopPlayback();
+
+    isResizingClip = true;
+    resizeClipId = clipId;
+    resizeEdge = edge;
+    resizeStartMouseX = e.clientX;
+    resizeStartStartFrame = clip.startFrame;
+    resizeStartDuration = clip.duration;
+
+    selectedId = clipId;
+    document.addEventListener('mousemove', onResizeMove);
+    document.addEventListener('mouseup', onResizeEnd);
+    document.addEventListener('mouseleave', onResizeEnd);
+    document.body.style.cursor = 'ew-resize';
+    drawTimeline();
+}
+
+function onResizeMove(e: MouseEvent): void {
+    if (!isResizingClip || !resizeClipId || !resizeEdge) return;
+    const clip = clips.find(c => c.id === resizeClipId);
+    if (!clip) return;
+
+    const container = timelineContainer;
+    const containerWidth = container.clientWidth - 4;
+    const pixelsPerSecond = getPixelsPerSecond(containerWidth);
+
+    // マウスの移動量をフレーム数に変換
+    const deltaX = (e.clientX - resizeStartMouseX) / pixelsPerSecond;
+    const deltaFrames = Math.round(deltaX * CONFIG.fps);
+
+    const oldStartFrame = clip.startFrame;
+    const oldDuration = clip.duration;
+    const endFrame = oldStartFrame + oldDuration;
+
+    if (resizeEdge === 'left') {
+        // ★ 左端リサイズ: startFrameを変更、endFrameは固定
+        let newStartFrame = Math.max(0, oldStartFrame + deltaFrames);
+
+        // ★ startFrameがendFrameより小さくなるように制限
+        const maxStartFrame = endFrame - 1; // 最低1フレームは確保
+        if (newStartFrame > maxStartFrame) {
+            newStartFrame = maxStartFrame;
+        }    
+
+        let newDuration = endFrame - newStartFrame;
+
+        // 最小durationを1フレームに制限
+        if (newDuration < 1) {
+            newDuration = 1;
+            newStartFrame = endFrame - 1;
+        }
+
+        // 一時的に適用
+        clip.startFrame = newStartFrame;
+        clip.duration = newDuration;
+
+        // 重なりチェック
+        if (CONFIG.preventOverlap && isOverlapping(clip, clip.id)) {
+            // 重なるなら元に戻す
+            clip.startFrame = oldStartFrame;
+            clip.duration = oldDuration;
+        } else {
+            // 確定したらUI更新
+            startInput.value = String(clip.startFrame);
+            durationInput.value = String(clip.duration);
+            resizeStartStartFrame = clip.startFrame;
+            resizeStartDuration = clip.duration;
+            resizeStartMouseX = e.clientX;
+        }
+
+    } else if (resizeEdge === 'right') {
+        // ★ 右端リサイズ: durationを変更、startFrameは固定
+        let newDuration = Math.max(1, oldDuration + deltaFrames);
+
+        // タイムラインの終端を超えないように制限
+        const maxDuration = TIMELINE_DURATION * CONFIG.fps - clip.startFrame;
+        if (newDuration > maxDuration) {
+            newDuration = maxDuration;
+        }
+
+        // 一時的に適用
+        clip.duration = newDuration;
+
+        // 重なりチェック
+        if (CONFIG.preventOverlap && isOverlapping(clip, clip.id)) {
+            clip.duration = oldDuration;
+        } else {
+            startInput.value = String(clip.startFrame);
+            durationInput.value = String(clip.duration);
+            resizeStartDuration = clip.duration;
+            resizeStartMouseX = e.clientX;
+        }
+    }
+
+    drawTimeline();
+    drawPreview();
+}
+
+function onResizeEnd(e: MouseEvent): void {
+    if (!isResizingClip) return;
+    isResizingClip = false;
+    resizeClipId = null;
+    resizeEdge = null;
+    document.removeEventListener('mousemove', onResizeMove);
+    document.removeEventListener('mouseup', onResizeEnd);
+    document.removeEventListener('mouseleave', onResizeEnd);
+    document.body.style.cursor = '';
+    syncUI();
+}
+
+// -------- クリップ移動 --------
 function startClipDrag(e: MouseEvent, clipId: string): void {
     if (isDraggingClip) return;
     const clip = clips.find(c => c.id === clipId);

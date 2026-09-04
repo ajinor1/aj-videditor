@@ -853,25 +853,33 @@ function drawTimeline(): void {
             const left = (clip.startFrame / CONFIG.fps) * pixelsPerSecond;
             const width = (clip.duration / CONFIG.fps) * pixelsPerSecond;
             const isSelected = clip.id === selectedId;
-
             const color = getClipColor(clip.type);
-
             const isDragging = isDraggingClip && dragClipId === clip.id;
             const opacity = isDragging ? '0.5' : '0.8';
-
+            
+            // ★ 図形の名前を先頭大文字に
+            const shapeName = clip.shapeType || 'shape';
+            const capitalized = shapeName.charAt(0).toUpperCase() + shapeName.slice(1);
+            
+            // ★ ラベル生成（テキストはそのまま、図形は先頭大文字＋スペース）
             const label = clip.type === 'text'
                 ? (clip.text || 'Text').replace(/\n/g, ' ')
-                : (clip.shapeType || 'shape');
-
-
+                : '\u00A0\u00A0\u00A0' + capitalized;
+            
             const endFrame = clip.startFrame + clip.duration;
+            
+            // ★ 最小幅を1pxに変更
+            const oneFrameWidth = pixelsPerSecond / CONFIG.fps;
+            const minWidth = Math.max(1, oneFrameWidth * 0.5);
+            const displayWidth = Math.max(width, minWidth);
+            
             html += `<div class="timeline-clip ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''}" 
-                          data-clip-id="${clip.id}"
-                          data-startframe="${clip.startFrame}"
-                          data-endframe="${endFrame}"
-                          style="left:${left}px; width:${Math.max(width, 4)}px; background:${color}; opacity:${opacity};">
-                        <span class="timeline-clip-label">${label}</span>
-                     </div>`;
+                      data-clip-id="${clip.id}"
+                      data-startframe="${clip.startFrame}"
+                      data-endframe="${endFrame}"
+                      style="left:${left}px; width:${displayWidth}px; background:${color}; opacity:${opacity};">
+                    <span class="timeline-clip-label">${label}</span>
+                 </div>`;
         }
 
         html += `</div></div>`;
@@ -1083,34 +1091,24 @@ function onResizeMove(e: MouseEvent): void {
     if (!clip) return;
 
     const container = timelineContainer;
+    const rect = container.getBoundingClientRect();
     const containerWidth = container.clientWidth - 4;
     const pixelsPerSecond = getPixelsPerSecond(containerWidth);
 
-    // マウスの移動量をフレーム数に変換
-    const deltaX = (e.clientX - resizeStartMouseX) / pixelsPerSecond;
-    const deltaFrames = Math.round(deltaX * CONFIG.fps);
+    // ★ マウスの位置を取得（タイムライン上の座標）
+    const mouseX = e.clientX - rect.left - TIMELINE_PADDING_LEFT + container.scrollLeft;
+
+    // ★ マウスの位置をフレームに変換
+    const mouseFrame = Math.round((mouseX / pixelsPerSecond) * CONFIG.fps);
 
     const oldStartFrame = clip.startFrame;
     const oldDuration = clip.duration;
     const endFrame = oldStartFrame + oldDuration;
 
     if (resizeEdge === 'left') {
-        // ★ 左端リサイズ: startFrameを変更、endFrameは固定
-        let newStartFrame = Math.max(0, oldStartFrame + deltaFrames);
-
-        // ★ startFrameがendFrameより小さくなるように制限
-        const maxStartFrame = endFrame - 1; // 最低1フレームは確保
-        if (newStartFrame > maxStartFrame) {
-            newStartFrame = maxStartFrame;
-        }    
-
+        // 左端リサイズ: マウスの位置にstartFrameを移動
+        let newStartFrame = Math.max(0, Math.min(mouseFrame, endFrame - 1));
         let newDuration = endFrame - newStartFrame;
-
-        // 最小durationを1フレームに制限
-        if (newDuration < 1) {
-            newDuration = 1;
-            newStartFrame = endFrame - 1;
-        }
 
         // 一時的に適用
         clip.startFrame = newStartFrame;
@@ -1118,40 +1116,69 @@ function onResizeMove(e: MouseEvent): void {
 
         // 重なりチェック
         if (CONFIG.preventOverlap && isOverlapping(clip, clip.id)) {
-            // 重なるなら元に戻す
-            clip.startFrame = oldStartFrame;
-            clip.duration = oldDuration;
-        } else {
-            // 確定したらUI更新
-            startInput.value = String(clip.startFrame);
-            durationInput.value = String(clip.duration);
-            resizeStartStartFrame = clip.startFrame;
-            resizeStartDuration = clip.duration;
-            resizeStartMouseX = e.clientX;
+            const direction = newStartFrame > oldStartFrame ? 1 : -1;
+            let testStartFrame = newStartFrame;
+            let found = false;
+
+            for (let i = 0; i < 100; i++) {
+                testStartFrame += direction * -1;
+                if (testStartFrame < 0 || testStartFrame > endFrame - 1) break;
+
+                clip.startFrame = testStartFrame;
+                clip.duration = endFrame - testStartFrame;
+                if (!isOverlapping(clip, clip.id)) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                clip.startFrame = oldStartFrame;
+                clip.duration = oldDuration;
+            }
         }
+
+        // UI更新
+        startInput.value = String(clip.startFrame);
+        durationInput.value = String(clip.duration);
+        resizeStartStartFrame = clip.startFrame;
+        resizeStartDuration = clip.duration;
 
     } else if (resizeEdge === 'right') {
-        // ★ 右端リサイズ: durationを変更、startFrameは固定
-        let newDuration = Math.max(1, oldDuration + deltaFrames);
-
-        // タイムラインの終端を超えないように制限
+        // 右端リサイズ: マウスの位置にendFrameを移動
         const maxDuration = TIMELINE_DURATION * CONFIG.fps - clip.startFrame;
-        if (newDuration > maxDuration) {
-            newDuration = maxDuration;
-        }
+        let newEndFrame = Math.max(clip.startFrame + 1, Math.min(TIMELINE_DURATION * CONFIG.fps, mouseFrame));
+        let newDuration = newEndFrame - clip.startFrame;
 
         // 一時的に適用
         clip.duration = newDuration;
 
         // 重なりチェック
         if (CONFIG.preventOverlap && isOverlapping(clip, clip.id)) {
-            clip.duration = oldDuration;
-        } else {
-            startInput.value = String(clip.startFrame);
-            durationInput.value = String(clip.duration);
-            resizeStartDuration = clip.duration;
-            resizeStartMouseX = e.clientX;
+            const direction = newDuration > oldDuration ? 1 : -1;
+            let testDuration = newDuration;
+            let found = false;
+
+            for (let i = 0; i < 100; i++) {
+                testDuration += direction * -1;
+                if (testDuration < 1 || testDuration > maxDuration) break;
+
+                clip.duration = testDuration;
+                if (!isOverlapping(clip, clip.id)) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                clip.duration = oldDuration;
+            }
         }
+
+        // UI更新
+        startInput.value = String(clip.startFrame);
+        durationInput.value = String(clip.duration);
+        resizeStartDuration = clip.duration;
     }
 
     drawTimeline();

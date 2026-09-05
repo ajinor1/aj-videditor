@@ -4,7 +4,7 @@
 
 
 // -------- import --------
-import { Clip, ClipType, ShapeType } from './core/types.js';
+import { Clip, ClipType, ShapeType } from './core/type.js';
 
 // -------- 定数 --------
 const TIMELINE_DURATION = 20;

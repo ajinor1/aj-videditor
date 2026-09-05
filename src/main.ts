@@ -955,28 +955,29 @@ function drawTimeline(): void {
     });
 
     // ホバー時にカーソルを変更（リサイズ可能な端を示す）
-    document.querySelectorAll('.timeline-clip').forEach(el => {
-        el.addEventListener('mousemove', (e: MouseEvent) => {
+    document.querySelectorAll('.timeline-clip').forEach((el) => {
+        const element = el as HTMLElement;
+        element.addEventListener('mousemove', (e: MouseEvent) => {
             if (isResizingClip || isDraggingClip) return;
-            const rect = el.getBoundingClientRect();
+            const rect = element.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const elWidth = rect.width;
             const edgeThreshold = 8;
-    
+
             if (mouseX < edgeThreshold || mouseX > elWidth - edgeThreshold) {
-                el.style.cursor = 'ew-resize';
+                element.style.cursor = 'ew-resize';
             } else {
-                el.style.cursor = 'grab';
+                element.style.cursor = 'grab';
             }
         });
-    
-        el.addEventListener('mouseleave', () => {
+
+        element.addEventListener('mouseleave', () => {
             if (!isResizingClip && !isDraggingClip) {
-                el.style.cursor = 'grab';
+                element.style.cursor = 'grab';
             }
         });
     });
-
+    
     const trackAreas = timelineContainer.querySelectorAll('.timeline-track-area');
     for (const area of trackAreas) {
         area.addEventListener('mousedown', (e: MouseEvent) => {

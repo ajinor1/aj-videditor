@@ -2,6 +2,10 @@
 // AJ Video Editor - エントリーポイント
 // ============================================================
 
+
+// -------- import --------
+import { Clip, ClipType, ShapeType } from './core/types.js';
+
 // -------- 定数 --------
 const TIMELINE_DURATION = 20;
 const DEFAULT_FONT = '"Hiragino Sans", "Microsoft YaHei", sans-serif';
@@ -21,6 +25,9 @@ const CONFIG = {
     resolution: { width: 1920, height: 1080 },
     fps: 60,
 };
+
+// ★ 追加: localStorageのキー
+const STORAGE_KEY = 'aj-videditor-settings';
 
 // -------- configを参照する定数 --------
 const totalFrames = TIMELINE_DURATION * CONFIG.fps;
@@ -161,31 +168,6 @@ function setupSliderDrag(
     slider.addEventListener('touchcancel', end);
 }
 
-// -------- 型定義 --------
-type ClipType = 'text' | 'shape';
-type ShapeType = 'rectangle' | 'triangle' | 'circle' | 'pie' | 'arrow';
-
-interface Clip {
-    id: string;
-    type: ClipType;
-    layerId: number;
-    startFrame: number;
-    duration: number;
-    x: number;
-    y: number;
-    rotation: number;
-    text?: string;
-    fontSize?: number;
-    color?: string;
-    fontFamily?: string;
-    shapeType?: ShapeType;
-    fillColor?: string;
-    strokeColor?: string;
-    strokeWidth?: number;
-    width?: number;
-    height?: number;
-}
-
 // -------- テーマ定義 --------
 const THEMES: Record<string, Record<string, string>> = {
     'white': { bg: '#f5f5f5', secondary: '#e8e8e8', card: '#ffffff', text: '#222222', textSecondary: '#666666', border: '#d0d0d0', accent: '#f5576c' },
@@ -268,7 +250,7 @@ const canvasWrapper = document.getElementById('canvasWrapper') as HTMLDivElement
 const propertiesPanel = document.getElementById('propertiesPanel') as HTMLDivElement;
 const bottomSection = document.getElementById('bottomSection') as HTMLDivElement;
 
-// ★ 図形用数値入力
+// 図形用数値入力
 const strokeWidthNumber = document.getElementById('strokeWidthNumber') as HTMLInputElement;
 const shapeWidthNumber = document.getElementById('shapeWidthNumber') as HTMLInputElement;
 const shapeHeightNumber = document.getElementById('shapeHeightNumber') as HTMLInputElement;
@@ -286,7 +268,7 @@ let isPlaying = false;
 let playInterval: number | null = null;
 let currentLayerCount = CONFIG.layerCount;
 
-// ★ ズーム関連
+// ズーム関連
 let timelineZoom = 1.0;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 8.0;
@@ -431,6 +413,7 @@ function setLayerCount(newCount: number): void {
     layerCountInput.value = String(newCount);
     drawTimeline();
     drawPreview();
+
 }
 
 // -------- 図形描画 --------
@@ -542,7 +525,40 @@ function drawShape(ctx: CanvasRenderingContext2D, clip: Clip): void {
     ctx.restore();
 }
 
+
+
 // -------- テーマ適用 --------
+
+// ★ 追加: 設定をlocalStorageに保存
+function saveSettings(): void {
+    try {
+        const settings = {
+            theme: CONFIG.theme,
+            preventOverlap: CONFIG.preventOverlap,
+            //bgColor: CONFIG.bgColor,
+            //layerCount: CONFIG.layerCount,
+            //resolution: CONFIG.resolution,
+            //fps: CONFIG.fps,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    } catch (e) {
+        // localStorageが使えない環境でもエラーにしない
+        console.warn('Settings save failed:', e);
+    }
+}
+
+// ★ 追加: localStorageから設定を読み込む
+function loadSettings(): typeof CONFIG | null {
+    try {
+        const data = localStorage.getItem(STORAGE_KEY);
+        if (!data) return null;
+        return JSON.parse(data);
+    } catch (e) {
+        console.warn('Settings load failed:', e);
+        return null;
+    }
+}
+
 function applyTheme(themeName: string): void {
     const theme = THEMES[themeName];
     if (!theme) return;
@@ -556,6 +572,9 @@ function applyTheme(themeName: string): void {
     root.style.setProperty('--accent', theme.accent);
     CONFIG.theme = themeName;
     themeSelect.value = themeName;
+
+    // ★ 修正箇所: テーマ変更時に保存
+    saveSettings();
 }
 
 // -------- プレビュー描画 --------
@@ -857,18 +876,18 @@ function drawTimeline(): void {
             const isDragging = isDraggingClip && dragClipId === clip.id;
             const opacity = isDragging ? '0.5' : '0.8';
             
-            // ★ 図形の名前を先頭大文字に
+            // 図形の名前を先頭大文字に
             const shapeName = clip.shapeType || 'shape';
             const capitalized = shapeName.charAt(0).toUpperCase() + shapeName.slice(1);
             
-            // ★ ラベル生成（テキストはそのまま、図形は先頭大文字＋スペース）
+            // ラベル生成（テキストはそのまま、図形は先頭大文字＋スペース）
             const label = clip.type === 'text'
                 ? (clip.text || 'Text').replace(/\n/g, ' ')
                 : '\u00A0\u00A0\u00A0' + capitalized;
             
             const endFrame = clip.startFrame + clip.duration;
             
-            // ★ 最小幅を1pxに変更
+            // 最小幅を1pxに変更
             const oneFrameWidth = pixelsPerSecond / CONFIG.fps;
             const minWidth = Math.max(1, oneFrameWidth * 0.5);
             const displayWidth = Math.max(width, minWidth);
@@ -910,7 +929,7 @@ function drawTimeline(): void {
     });
 
     document.querySelectorAll('.timeline-clip').forEach(el => {
-        // ★ 修正箇所: リサイズかドラッグかを判定
+        // 修正箇所: リサイズかドラッグかを判定
         el.addEventListener('mousedown', (e: MouseEvent) => {
             const id = el.getAttribute('data-clip-id');
             if (!id) return;
@@ -934,7 +953,7 @@ function drawTimeline(): void {
         });
     });
 
-    // ★ 追加: ホバー時にカーソルを変更（リサイズ可能な端を示す）
+    // ホバー時にカーソルを変更（リサイズ可能な端を示す）
     document.querySelectorAll('.timeline-clip').forEach(el => {
         el.addEventListener('mousemove', (e: MouseEvent) => {
             if (isResizingClip || isDraggingClip) return;
@@ -1095,10 +1114,10 @@ function onResizeMove(e: MouseEvent): void {
     const containerWidth = container.clientWidth - 4;
     const pixelsPerSecond = getPixelsPerSecond(containerWidth);
 
-    // ★ マウスの位置を取得（タイムライン上の座標）
+    // マウスの位置を取得（タイムライン上の座標）
     const mouseX = e.clientX - rect.left - TIMELINE_PADDING_LEFT + container.scrollLeft;
 
-    // ★ マウスの位置をフレームに変換
+    // マウスの位置をフレームに変換
     const mouseFrame = Math.round((mouseX / pixelsPerSecond) * CONFIG.fps);
 
     const oldStartFrame = clip.startFrame;
@@ -1239,7 +1258,7 @@ function onClipDragMove(e: MouseEvent): void {
     let newLayerId = layerIndex + 1;
     newLayerId = Math.max(1, Math.min(currentLayerCount, newLayerId));
 
-    // ★ 横移動を先に試す（同じレイヤーのまま）
+    // 横移動を先に試す（同じレイヤーのまま）
     const oldStartFrame = clip.startFrame;
     const oldLayerId = clip.layerId;
     clip.startFrame = newStartFrame;
@@ -1267,7 +1286,7 @@ function onClipDragMove(e: MouseEvent): void {
         }
     }
 
-    // ★ レイヤー変更を試す（横移動は維持したまま）
+    // レイヤー変更を試す（横移動は維持したまま）
     if (newLayerId !== oldLayerId) {
         const currentStartFrame = clip.startFrame;
         clip.layerId = newLayerId;
@@ -1442,7 +1461,7 @@ function formatTime(frame: number): string {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${tenths}`;
 }
 
-// ★ ヘルパー関数
+// ヘルパー関数
 function getVisibleDuration(): number {
     return TIMELINE_DURATION / timelineZoom;
 }
@@ -1475,7 +1494,7 @@ function updateZoomDisplay(): void {
     }
 }
 
-// ★ ズーム制御関数
+// ズーム制御関数
 function zoomTimeline(factor: number): void {
     const oldZoom = timelineZoom;
     const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, timelineZoom * factor));
@@ -1525,7 +1544,7 @@ function syncUI(): void {
             fillColorPicker.value = selected.fillColor || '#ffffff';
             strokeColorPicker.value = selected.strokeColor || '#ffffff';
             strokeWidthSlider.value = String(selected.strokeWidth || 0);
-            // ★ 数値入力にも反映
+            // 数値入力にも反映
             strokeWidthNumber.value = String(selected.strokeWidth || 0);
             shapeWidthSlider.value = String(selected.width || 100);
             shapeWidthNumber.value = String(selected.width || 100);
@@ -1813,7 +1832,7 @@ function setupAllNumberInputs(): void {
                 drawPreview();
             }
         },
-        // ===== ★ 追加：Stroke W =====
+        // ===== Stroke W =====
         {
             input: strokeWidthNumber,
             slider: strokeWidthSlider,
@@ -1830,7 +1849,7 @@ function setupAllNumberInputs(): void {
                 drawPreview();
             }
         },
-        // ===== ★ 追加：Width =====
+        // ===== Width =====
         {
             input: shapeWidthNumber,
             slider: shapeWidthSlider,
@@ -1847,7 +1866,7 @@ function setupAllNumberInputs(): void {
                 drawPreview();
             }
         },
-        // ===== ★ 追加：Height =====
+        // ===== Height =====
         {
             input: shapeHeightNumber,
             slider: shapeHeightSlider,
@@ -1973,7 +1992,10 @@ settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOver
 
 // -------- 設定UIのイベント登録 --------
 themeSelect.addEventListener('change', () => applyTheme(themeSelect.value));
-overlapToggle.addEventListener('change', () => { CONFIG.preventOverlap = overlapToggle.checked; });
+overlapToggle.addEventListener('change', () => {
+    CONFIG.preventOverlap = overlapToggle.checked; 
+    saveSettings(); // ★ 修正箇所: 保存
+});
 
 applyLayerCountBtn.addEventListener('click', () => {
     const val = parseInt(layerCountInput.value, 10);
@@ -2196,7 +2218,7 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// ★ マウスホイール（Ctrl + ホイールでズーム、それ以外は横スクロール）
+// マウスホイール（Ctrl + ホイールでズーム、それ以外は横スクロール）
 timelineContainer.addEventListener('wheel', (e) => {
     if (e.ctrlKey || e.metaKey) {
         // Ctrlキー（またはCommandキー）を押しながらホイール → ズーム
@@ -2218,14 +2240,34 @@ timelineContainer.addEventListener('wheel', (e) => {
 
 // -------- 初期化 --------
 function init(): void {
+    // ★ 保存されたテーマと重なり防止を読み込む
+    const savedSettings = loadSettings();
+    if (savedSettings) {
+        if (savedSettings.theme) {
+            CONFIG.theme = savedSettings.theme;
+        }
+        if (savedSettings.preventOverlap !== undefined) {
+            CONFIG.preventOverlap = savedSettings.preventOverlap;
+        }
+    }
+
     selectedId = null;
     totalTimeDisplay.textContent = formatTime(TIMELINE_DURATION * CONFIG.fps);
     currentLayerCount = CONFIG.layerCount;
     layerCountInput.value = String(CONFIG.layerCount);
     applyTheme(CONFIG.theme);
+
+    // ★ 重なり防止の状態を復元
+    overlapToggle.checked = CONFIG.preventOverlap;
+
+    // ★ 他の設定はデフォルトのまま（保存・復元しない）
+    bgColorPicker.value = CONFIG.bgColor;
+    resolutionSelect.value = `${CONFIG.resolution.width}x${CONFIG.resolution.height}`;
+    fpsSelect.value = String(CONFIG.fps);
+
     syncUI();
 
-    bottomSection.style.height = '400px';
+    bottomSection.style.height = '270px';
     bottomSection.style.minHeight = `${MIN_TIMELINE_HEIGHT}px`;
 }
 

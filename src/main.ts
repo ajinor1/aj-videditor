@@ -2,6 +2,7 @@
 // AJ Video Editor - エントリーポイント
 // ============================================================
 
+// テストうんこ
 
 // -------- import --------
 import { Clip, ClipType, ShapeType } from './core/type.js';
@@ -992,7 +993,7 @@ function drawTimeline(): void {
             startSeek(e);
         });
     }
-    
+
     const addLayerBtn = document.getElementById('addLayerBtn');
     const addLayerInputContainer = document.getElementById('addLayerInputContainer');
     const addLayerCountInput = document.getElementById('addLayerCountInput') as HTMLInputElement;

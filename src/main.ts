@@ -917,8 +917,9 @@ function drawTimeline(): void {
     timelineContainer.style.height = `${Math.max(80, containerHeight)}px`;
     timelineContainer.innerHTML = html;
 
-    document.querySelectorAll('.timeline-clip').forEach(el => {
-        el.addEventListener('click', (e) => {
+    document.querySelectorAll('.timeline-clip').forEach((el) => {
+        const element = el as HTMLElement;
+        element.addEventListener('mousemove', (e: MouseEvent) => {
             if (isDraggingClip) return;
             const id = el.getAttribute('data-clip-id');
             if (id) {
@@ -978,7 +979,7 @@ function drawTimeline(): void {
 
     const trackAreas = timelineContainer.querySelectorAll('.timeline-track-area');
     for (const area of trackAreas) {
-        area.addEventListener('mousedown', (e) => {
+        area.addEventListener('mousedown', (e: MouseEvent) => {
             const target = e.target as HTMLElement;
             if (target.closest('.timeline-clip')) return;
             startSeek(e);

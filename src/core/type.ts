@@ -1,8 +1,8 @@
 // -------- 型定義 --------
-type ClipType = 'text' | 'shape';
-type ShapeType = 'rectangle' | 'triangle' | 'circle' | 'pie' | 'arrow';
+export type ClipType = 'text' | 'shape';
+export type ShapeType = 'rectangle' | 'triangle' | 'circle' | 'pie' | 'arrow';
 
-interface Clip {
+export interface Clip {
     id: string;
     type: ClipType;
     layerId: number;

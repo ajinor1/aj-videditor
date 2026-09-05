@@ -988,11 +988,11 @@ function drawTimeline(): void {
     }
     const ruler = timelineContainer.querySelector('.timeline-ruler-inner');
     if (ruler) {
-        ruler.addEventListener('mousedown', (e) => {
+        ruler.addEventListener('mousedown', (e: MouseEvent) => {
             startSeek(e);
         });
     }
-
+    
     const addLayerBtn = document.getElementById('addLayerBtn');
     const addLayerInputContainer = document.getElementById('addLayerInputContainer');
     const addLayerCountInput = document.getElementById('addLayerCountInput') as HTMLInputElement;

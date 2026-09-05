@@ -2074,6 +2074,9 @@ addShapeBtn.addEventListener('click', () => {
 });
 
 // -------- イベント登録 --------
+// ★ 追加: テキスト入力のリアルタイム更新
+textInput.addEventListener('input', updateSelected);
+
 deleteBtn.addEventListener('click', deleteSelected);
 playBtn.addEventListener('click', togglePlay);
 

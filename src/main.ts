@@ -2,11 +2,6 @@
 // AJ Video Editor - エントリーポイント
 // ============================================================
 
-// テストうんこあああ
-
-// -------- import --------
-import { Clip, ClipType, ShapeType } from './core/type.js';
-
 // -------- 定数 --------
 const TIMELINE_DURATION = 20;
 const DEFAULT_FONT = '"Hiragino Sans", "Microsoft YaHei", sans-serif';
@@ -167,6 +162,31 @@ function setupSliderDrag(
     slider.addEventListener('touchstart', start);
     slider.addEventListener('touchend', end);
     slider.addEventListener('touchcancel', end);
+}
+
+// -------- 型定義 --------
+type ClipType = 'text' | 'shape';
+type ShapeType = 'rectangle' | 'triangle' | 'circle' | 'pie' | 'arrow';
+
+interface Clip {
+    id: string;
+    type: ClipType;
+    layerId: number;
+    startFrame: number;
+    duration: number;
+    x: number;
+    y: number;
+    rotation: number;
+    text?: string;
+    fontSize?: number;
+    color?: string;
+    fontFamily?: string;
+    shapeType?: ShapeType;
+    fillColor?: string;
+    strokeColor?: string;
+    strokeWidth?: number;
+    width?: number;
+    height?: number;
 }
 
 // -------- テーマ定義 --------
@@ -918,9 +938,8 @@ function drawTimeline(): void {
     timelineContainer.style.height = `${Math.max(80, containerHeight)}px`;
     timelineContainer.innerHTML = html;
 
-    document.querySelectorAll('.timeline-clip').forEach((el) => {
-        const element = el as HTMLElement;
-        element.addEventListener('mousemove', (e: MouseEvent) => {
+    document.querySelectorAll('.timeline-clip').forEach(el => {
+        el.addEventListener('click', (e) => {
             if (isDraggingClip) return;
             const id = el.getAttribute('data-clip-id');
             if (id) {
@@ -956,32 +975,31 @@ function drawTimeline(): void {
     });
 
     // ホバー時にカーソルを変更（リサイズ可能な端を示す）
-    document.querySelectorAll('.timeline-clip').forEach((el) => {
-        const element = el as HTMLElement;
-        element.addEventListener('mousemove', (e: MouseEvent) => {
+    document.querySelectorAll('.timeline-clip').forEach(el => {
+        el.addEventListener('mousemove', (e: MouseEvent) => {
             if (isResizingClip || isDraggingClip) return;
-            const rect = element.getBoundingClientRect();
+            const rect = el.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const elWidth = rect.width;
             const edgeThreshold = 8;
-
+    
             if (mouseX < edgeThreshold || mouseX > elWidth - edgeThreshold) {
-                element.style.cursor = 'ew-resize';
+                el.style.cursor = 'ew-resize';
             } else {
-                element.style.cursor = 'grab';
+                el.style.cursor = 'grab';
             }
         });
-
-        element.addEventListener('mouseleave', () => {
+    
+        el.addEventListener('mouseleave', () => {
             if (!isResizingClip && !isDraggingClip) {
-                element.style.cursor = 'grab';
+                el.style.cursor = 'grab';
             }
         });
     });
-    
+
     const trackAreas = timelineContainer.querySelectorAll('.timeline-track-area');
     for (const area of trackAreas) {
-        area.addEventListener('mousedown', (e: MouseEvent) => {
+        area.addEventListener('mousedown', (e) => {
             const target = e.target as HTMLElement;
             if (target.closest('.timeline-clip')) return;
             startSeek(e);
@@ -989,7 +1007,7 @@ function drawTimeline(): void {
     }
     const ruler = timelineContainer.querySelector('.timeline-ruler-inner');
     if (ruler) {
-        ruler.addEventListener('mousedown', (e: MouseEvent) => {
+        ruler.addEventListener('mousedown', (e) => {
             startSeek(e);
         });
     }
@@ -2177,6 +2195,137 @@ function setOverlapPrevention(enabled: boolean): void {
 function setBackgroundColor(color: string): void {
     CONFIG.bgColor = color;
     drawPreview();
+}
+
+// ★ 追加: プロジェクト保存
+function saveProject(): void {
+    try {
+        const projectData = {
+            version: '1.0',
+            clips: clips,
+            config: {
+                preventOverlap: CONFIG.preventOverlap,
+                bgColor: CONFIG.bgColor,
+                resolution: CONFIG.resolution,
+                fps: CONFIG.fps,
+                layerCount: CONFIG.layerCount,
+            },
+            currentFrame: currentFrame,
+            selectedId: selectedId,
+            layerCount: currentLayerCount,
+            timestamp: new Date().toISOString(),
+        };
+
+        const json = JSON.stringify(projectData, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `project-${new Date().toISOString().slice(0, 10)}.ajp`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        URL.revokeObjectURL(url);
+        console.log('Project saved successfully!');
+    } catch (err) {
+        console.error('Save error:', err);
+        alert('プロジェクトの保存に失敗しました。');
+    }
+}
+
+// ★ 追加: プロジェクト読み込み
+function loadProject(file: File): void {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target?.result as string);
+
+            // バージョンチェック
+            if (data.version !== '1.0') {
+                console.warn('Different project version:', data.version);
+                if (!confirm(`プロジェクトのバージョンが異なります (${data.version})。\n読み込みを続行しますか？`)) {
+                    return;
+                }
+            }
+
+            // クリップデータを復元（IDカウンターはリセットしない）
+            clips = data.clips || [];
+
+            // 設定を復元
+            if (data.config) {
+                if (data.config.preventOverlap !== undefined) {
+                    CONFIG.preventOverlap = data.config.preventOverlap;
+                    overlapToggle.checked = CONFIG.preventOverlap;
+                }
+                if (data.config.bgColor) {
+                    CONFIG.bgColor = data.config.bgColor;
+                    bgColorPicker.value = CONFIG.bgColor;
+                }
+                if (data.config.resolution) {
+                    CONFIG.resolution = data.config.resolution;
+                    canvas.width = CONFIG.resolution.width;
+                    canvas.height = CONFIG.resolution.height;
+                    resolutionSelect.value = `${CONFIG.resolution.width}x${CONFIG.resolution.height}`;
+                }
+                if (data.config.fps) {
+                    CONFIG.fps = data.config.fps;
+                    fpsSelect.value = String(CONFIG.fps);
+                }
+                if (data.config.layerCount) {
+                    CONFIG.layerCount = data.config.layerCount;
+                    currentLayerCount = data.config.layerCount;
+                    layerCountInput.value = String(CONFIG.layerCount);
+                }
+            }
+
+            // 再生位置を復元
+            currentFrame = data.currentFrame || 0;
+
+            // 選択状態を復元
+            selectedId = data.selectedId || null;
+
+            // レイヤー数を復元
+            if (data.layerCount) {
+                currentLayerCount = data.layerCount;
+            }
+
+            // UIを更新
+            syncUI();
+            drawPreview();
+            drawTimeline();
+
+            console.log(`Project loaded successfully! (${clips.length} clips)`);
+            alert(`プロジェクトを読み込みました！\nクリップ数: ${clips.length}`);
+        } catch (err) {
+            console.error('Load error:', err);
+            alert('プロジェクトの読み込みに失敗しました。\nファイルが壊れている可能性があります。');
+        }
+    };
+    reader.readAsText(file);
+}
+
+// ★ 追加: プロジェクト保存/読み込みのイベント
+const saveBtn = document.getElementById('saveProjectBtn') as HTMLButtonElement;
+const loadBtn = document.getElementById('loadProjectBtn') as HTMLButtonElement;
+const loadInput = document.getElementById('loadProjectInput') as HTMLInputElement;
+
+if (saveBtn) {
+    saveBtn.addEventListener('click', saveProject);
+}
+
+if (loadBtn && loadInput) {
+    loadBtn.addEventListener('click', () => {
+        loadInput.click();
+    });
+    loadInput.addEventListener('change', (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (file) {
+            loadProject(file);
+        }
+        loadInput.value = ''; // 同じファイルを再度選べるようにリセット
+    });
 }
 
 // -------- デバッグ用グローバル公開 --------

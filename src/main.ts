@@ -2,7 +2,7 @@
 // AJ Video Editor - エントリーポイント
 // ============================================================
 
-// テストうんこ
+// テストうんこあああ
 
 // -------- import --------
 import { Clip, ClipType, ShapeType } from './core/type.js';

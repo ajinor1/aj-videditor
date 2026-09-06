@@ -23,7 +23,7 @@ const CONFIG = {
     text_wheel_step: 3;
 };
 
-// ★ 追加: localStorageのキー
+// localStorageのキー
 const STORAGE_KEY = 'aj-videditor-settings';
 
 // -------- configを参照する定数 --------
@@ -556,7 +556,7 @@ function drawShape(ctx: CanvasRenderingContext2D, clip: Clip): void {
 
 // -------- テーマ適用 --------
 
-// ★ 追加: 設定をlocalStorageに保存
+// 設定をlocalStorageに保存
 function saveSettings(): void {
     try {
         const settings = {
@@ -574,7 +574,7 @@ function saveSettings(): void {
     }
 }
 
-// ★ 追加: localStorageから設定を読み込む
+// localStorageから設定を読み込む
 function loadSettings(): typeof CONFIG | null {
     try {
         const data = localStorage.getItem(STORAGE_KEY);
@@ -600,7 +600,7 @@ function applyTheme(themeName: string): void {
     CONFIG.theme = themeName;
     themeSelect.value = themeName;
 
-    // ★ 修正箇所: テーマ変更時に保存
+    //  テーマ変更時に保存
     saveSettings();
 }
 
@@ -677,6 +677,10 @@ function drawPreview(): void {
                 ctx.save();
                 ctx.translate(drawX, drawY);
                 ctx.rotate(clip.rotation * Math.PI / 180);
+
+                // ★ 追加: measureText の前に font を設定！
+                ctx.font = `${clip.fontSize || 48}px ${clip.fontFamily || DEFAULT_FONT}`;
+
                 let maxWidth = 0;
                 for (const line of lines) {
                     const metrics = ctx.measureText(line);
@@ -684,8 +688,8 @@ function drawPreview(): void {
                 }
                 const width = maxWidth || 50;
                 const height = totalHeight;
-                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.lineWidth = 4;
                 ctx.setLineDash([4, 6]);
                 ctx.strokeRect(-width/2 - 10, -height/2 - 10, width + 20, height + 20);
                 ctx.setLineDash([]);
@@ -703,8 +707,8 @@ function drawPreview(): void {
                 ctx.save();
                 ctx.translate(drawX, drawY);
                 ctx.rotate(clip.rotation * Math.PI / 180);
-                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.lineWidth = 4;
                 ctx.setLineDash([4, 6]);
                 ctx.strokeRect(-w/2 - 10, -h/2 - 10, w + 20, h + 20);
                 ctx.setLineDash([]);
@@ -839,6 +843,9 @@ function setupPreviewDrag(): void {
             xSlider.value = String(newX);
             yNumber.value = String(newY);
             ySlider.value = String(newY);
+
+            updateSliderRange(xSlider, newX, SLIDER_STAGES.coord, false);
+            updateSliderRange(ySlider, newY, SLIDER_STAGES.coord, false);
         }
 
         drawPreview();
@@ -870,7 +877,7 @@ canvas.addEventListener('wheel', (e: WheelEvent) => {
     // テキストクリップ以外は無視
     if (!clip || clip.type !== 'text') return;
     
-    // ★ 重なり対応: 同じ位置に複数ある場合は最前面（layerIdが最大）を選ぶ
+    // 重なり対応: 同じ位置に複数ある場合は最前面（layerIdが最大）を選ぶ
     const visibleClips = getClipsAtFrame(currentFrame);
     const textClipsAtPos = visibleClips.filter(c => {
         if (c.type !== 'text') return false;
@@ -907,10 +914,11 @@ canvas.addEventListener('wheel', (e: WheelEvent) => {
     
     targetClip.fontSize = newSize;
 
-    // ★ パネル連動（選択中なら更新）
+    // パネル連動（選択中なら更新）
     if (selectedId === targetClip.id) {
         fontSizeSlider.value = String(newSize);
         fontSizeNumber.value = String(newSize);
+        updateSliderRangePositive(fontSizeSlider, newSize, SLIDER_STAGES.fontSize, false);
     }
 
     drawPreview();
@@ -2095,7 +2103,7 @@ settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOver
 themeSelect.addEventListener('change', () => applyTheme(themeSelect.value));
 overlapToggle.addEventListener('change', () => {
     CONFIG.preventOverlap = overlapToggle.checked; 
-    saveSettings(); // ★ 修正箇所: 保存
+    saveSettings(); // 保存
 });
 
 applyLayerCountBtn.addEventListener('click', () => {
@@ -2154,7 +2162,7 @@ addShapeBtn.addEventListener('click', () => {
 });
 
 // -------- イベント登録 --------
-// ★ 追加: テキスト入力のリアルタイム更新
+// テキスト入力のリアルタイム更新
 textInput.addEventListener('input', updateSelected);
 
 deleteBtn.addEventListener('click', deleteSelected);
@@ -2281,7 +2289,7 @@ function setBackgroundColor(color: string): void {
     drawPreview();
 }
 
-// ★ 追加: プロジェクト保存
+// プロジェクト保存
 function saveProject(): void {
     try {
         const projectData = {
@@ -2319,7 +2327,7 @@ function saveProject(): void {
     }
 }
 
-// ★ 追加: プロジェクト読み込み
+// プロジェクト読み込み
 function loadProject(file: File): void {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -2390,7 +2398,7 @@ function loadProject(file: File): void {
     reader.readAsText(file);
 }
 
-// ★ 追加: プロジェクト保存/読み込みのイベント
+// プロジェクト保存/読み込みのイベント
 const saveBtn = document.getElementById('saveProjectBtn') as HTMLButtonElement;
 const loadBtn = document.getElementById('loadProjectBtn') as HTMLButtonElement;
 const loadInput = document.getElementById('loadProjectInput') as HTMLInputElement;
@@ -2476,7 +2484,7 @@ timelineContainer.addEventListener('wheel', (e) => {
 
 // -------- 初期化 --------
 function init(): void {
-    // ★ 保存されたテーマと重なり防止を読み込む
+    // 保存されたテーマと重なり防止を読み込む
     const savedSettings = loadSettings();
     if (savedSettings) {
         if (savedSettings.theme) {
@@ -2493,10 +2501,10 @@ function init(): void {
     layerCountInput.value = String(CONFIG.layerCount);
     applyTheme(CONFIG.theme);
 
-    // ★ 重なり防止の状態を復元
+    // 重なり防止の状態を復元
     overlapToggle.checked = CONFIG.preventOverlap;
 
-    // ★ 他の設定はデフォルトのまま（保存・復元しない）
+    // 他の設定はデフォルトのまま（保存・復元しない）
     bgColorPicker.value = CONFIG.bgColor;
     resolutionSelect.value = `${CONFIG.resolution.width}x${CONFIG.resolution.height}`;
     fpsSelect.value = String(CONFIG.fps);

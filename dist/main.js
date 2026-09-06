@@ -851,7 +851,7 @@ function drawTimeline() {
             const capitalized = shapeName.charAt(0).toUpperCase() + shapeName.slice(1);
             // ラベル生成（テキストはそのまま、図形は先頭大文字＋スペース）
             const label = clip.type === 'text'
-                ? (clip.text || 'Text').replace(/\n/g, ' ')
+                ? '\u00A0\u00A0\u00A0' + (clip.text || 'Text').replace(/\n/g, ' ')
                 : '\u00A0\u00A0\u00A0' + capitalized;
             const endFrame = clip.startFrame + clip.duration;
             // 最小幅を1pxに変更

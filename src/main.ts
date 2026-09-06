@@ -3,7 +3,6 @@
 // ============================================================
 
 // -------- 定数 --------
-const TIMELINE_DURATION = 20;
 const DEFAULT_FONT = '"Hiragino Sans", "Microsoft YaHei", sans-serif';
 const TIMELINE_HEIGHT = 32;
 const TIMELINE_PADDING_LEFT = 80;
@@ -11,6 +10,9 @@ const TIMELINE_PADDING_RIGHT = 20;
 const TIMELINE_HEADER_HEIGHT = 28;
 const MAX_LAYERS = 99;
 const DEFAULT_LAYER_COUNT = 10;
+const BASE_PIXELS_PERSEC = 40;
+
+// -------- 変数 --------
 
 // -------- 初期設定 --------
 const CONFIG = {
@@ -26,9 +28,15 @@ const CONFIG = {
 // localStorageのキー
 const STORAGE_KEY = 'aj-videditor-settings';
 
+// -------- configを参照する変数 --------
+let TIMELINE_DURATION =  1;
+let TIMELINE_DURATION_SEC = TIMELINE_DURATION / CONFIG.fps
+
 // -------- configを参照する定数 --------
-const totalFrames = TIMELINE_DURATION * CONFIG.fps;
+const totalFrames = TIMELINE_DURATION;
 const DEFAULT_CLIP_DURATION = 3 * CONFIG.fps;
+
+const MAX_TIMELINE_FRAMES = 60 * 60 * CONFIG.fps; // 上限216000フレーム
 
 // -------- クリップタイプごとの色 --------
 const CLIP_COLORS = {
@@ -60,7 +68,7 @@ const NUMBER_CONFIGS = {
     stroke: { min: 0, max: 3200, default: 0, stages: SLIDER_STAGES.stroke },
     fontSize: { min: 0, max: 3200, default: 50, stages: SLIDER_STAGES.fontSize },
     start: { min: 0, max: 600, default: 0, stages: null },
-    duration: { min: 1, max: 600, default: 90, stages: null },
+    duration: { min: 1, max: 216000, default: 90, stages: null },
 };
 
 // -------- 汎用関数 --------
@@ -299,8 +307,8 @@ let currentLayerCount = CONFIG.layerCount;
 
 // ズーム関連
 let timelineZoom = 1.0;
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 8.0;
+const MIN_ZOOM = 0.0625;
+const MAX_ZOOM = 16.0;
 
 // ドラッグ中フラグ
 let isDraggingX = false;
@@ -420,6 +428,32 @@ function getClipsAtFrame(frame: number): Clip[] {
     return clips.filter(clip => {
         return frame >= clip.startFrame && frame < clip.startFrame + clip.duration;
     });
+}
+
+// タイムラインの長さをクリップに合わせて自動調整
+function updateTimelineDuration(): void {
+    // クリップが1つもない場合は最小1フレーム
+    if (clips.length === 0) {
+        TIMELINE_DURATION = 1;
+        TIMELINE_DURATION_SEC = TIMELINE_DURATION / CONFIG.fps;
+        return;
+    }
+
+    // すべてのクリップの endFrame を計算して最大値を取得
+    let maxEndFrame = 0;
+    for (const clip of clips) {
+        const endFrame = clip.startFrame + clip.duration;
+        if (endFrame > maxEndFrame) {
+            maxEndFrame = endFrame;
+        }
+    }
+
+    // 上限を超えないように制限
+    const newDuration = Math.min(maxEndFrame, MAX_TIMELINE_FRAMES);
+
+    // TIMELINE_DURATION を更新
+    TIMELINE_DURATION = newDuration;
+    TIMELINE_DURATION_SEC = TIMELINE_DURATION / CONFIG.fps;
 }
 
 // -------- レイヤー数変更 --------
@@ -678,7 +712,6 @@ function drawPreview(): void {
                 ctx.translate(drawX, drawY);
                 ctx.rotate(clip.rotation * Math.PI / 180);
 
-                // ★ 追加: measureText の前に font を設定！
                 ctx.font = `${clip.fontSize || 48}px ${clip.fontFamily || DEFAULT_FONT}`;
 
                 let maxWidth = 0;
@@ -940,7 +973,7 @@ function drawTimeline(): void {
 
     html += `<div class="timeline-ruler" style="height:${TIMELINE_HEADER_HEIGHT}px; padding-left:${TIMELINE_PADDING_LEFT}px; padding-right:${TIMELINE_PADDING_RIGHT}px;">`;
     html += `<div class="timeline-ruler-inner" style="position:relative; height:100%; width:100%;">`;
-    for (let s = 0; s <= TIMELINE_DURATION; s++) {
+    for (let s = 0; s <= TIMELINE_DURATION_SEC; s++) {
         const x = s * pixelsPerSecond;
         const isMajor = s % 5 === 0;
         html += `<div class="timeline-tick ${isMajor ? 'major' : 'minor'}" style="left:${x}px;">`;
@@ -1140,7 +1173,7 @@ function drawTimeline(): void {
     }
 
     currentTimeDisplay.textContent = formatTime(currentFrame);
-    totalTimeDisplay.textContent = formatTime(TIMELINE_DURATION * CONFIG.fps);
+    totalTimeDisplay.textContent = formatTime(TIMELINE_DURATION);
 
      // -------- ズームコントロールを追加 --------
     const timelineControls = document.querySelector('.timeline-controls');
@@ -1257,8 +1290,8 @@ function onResizeMove(e: MouseEvent): void {
 
     } else if (resizeEdge === 'right') {
         // 右端リサイズ: マウスの位置にendFrameを移動
-        const maxDuration = TIMELINE_DURATION * CONFIG.fps - clip.startFrame;
-        let newEndFrame = Math.max(clip.startFrame + 1, Math.min(TIMELINE_DURATION * CONFIG.fps, mouseFrame));
+        const maxDuration = TIMELINE_DURATION - clip.startFrame;
+        let newEndFrame = Math.max(clip.startFrame + 1, Math.min(TIMELINE_DURATION, mouseFrame));
         let newDuration = newEndFrame - clip.startFrame;
 
         // 一時的に適用
@@ -1305,6 +1338,7 @@ function onResizeEnd(e: MouseEvent): void {
     document.removeEventListener('mouseup', onResizeEnd);
     document.removeEventListener('mouseleave', onResizeEnd);
     document.body.style.cursor = '';
+    updateTimelineDuration();
     syncUI();
 }
 
@@ -1341,7 +1375,7 @@ function onClipDragMove(e: MouseEvent): void {
     // 横方向のドラッグでフレームを変更
     const deltaX = (e.clientX - dragStartMouseX) / pixelsPerSecond;
     let newStartFrame = Math.round(dragStartFrame + deltaX * CONFIG.fps);
-    const maxStart = TIMELINE_DURATION * CONFIG.fps - clip.duration;
+    const maxStart = TIMELINE_DURATION - clip.duration;
     newStartFrame = Math.max(0, Math.min(maxStart, newStartFrame));
 
     // 縦方向のドラッグでレイヤーを変更
@@ -1369,7 +1403,7 @@ function onClipDragMove(e: MouseEvent): void {
                 break;
             }
             testFrame += direction;
-            if (testFrame < 0 || testFrame > TIMELINE_DURATION * CONFIG.fps - clip.duration) {
+            if (testFrame < 0 || testFrame > TIMELINE_DURATION - clip.duration) {
                 break;
             }
         }
@@ -1411,6 +1445,7 @@ function onClipDragEnd(e: MouseEvent): void {
     document.body.style.cursor = '';
     drawTimeline();
     drawPreview();
+    updateTimelineDuration();
     syncUI();
 }
 
@@ -1428,7 +1463,7 @@ function getFrameFromMouseEvent(e: MouseEvent): number {
     const pixelsPerSecond = getPixelsPerSecond(containerWidth);
 
     const x = e.clientX - rect.left - TIMELINE_PADDING_LEFT + container.scrollLeft;
-    const seconds = Math.max(0, Math.min(TIMELINE_DURATION, x / pixelsPerSecond));
+    const seconds = Math.max(0, Math.min(TIMELINE_DURATION_SEC, x / pixelsPerSecond));
     return Math.round(seconds * CONFIG.fps);
 }
 
@@ -1468,14 +1503,14 @@ function togglePlay(): void {
 
 function startPlayback(): void {
     if (isPlaying) return;
-    if (currentFrame >= TIMELINE_DURATION * CONFIG.fps) currentFrame = 0;
+    if (currentFrame >= TIMELINE_DURATION) currentFrame = 0;
     isPlaying = true;
     playBtn.textContent = '⏸';
     playBtn.classList.add('playing');
     playInterval = window.setInterval(() => {
         currentFrame++;
-        if (currentFrame >= TIMELINE_DURATION * CONFIG.fps) {
-            currentFrame = TIMELINE_DURATION * CONFIG.fps;
+        if (currentFrame >= TIMELINE_DURATION) {
+            currentFrame = TIMELINE_DURATION;
             stopPlayback();
             drawTimeline();
             drawPreview();
@@ -1516,9 +1551,9 @@ function resolveOverlap(clip: Clip, ignoreId?: string): void {
     while (isOverlapping(clip, ignoreId) && attempts < 100) {
         attempts++;
         clip.startFrame++;
-        if (clip.startFrame + clip.duration > TIMELINE_DURATION * CONFIG.fps) {
-            clip.startFrame = TIMELINE_DURATION * CONFIG.fps - clip.duration;
-            if (clip.startFrame < 0) { clip.startFrame = 0; clip.duration = TIMELINE_DURATION * CONFIG.fps; }
+        if (clip.startFrame + clip.duration > TIMELINE_DURATION) {
+            clip.startFrame = TIMELINE_DURATION - clip.duration;
+            if (clip.startFrame < 0) { clip.startFrame = 0; clip.duration = TIMELINE_DURATION; }
             break;
         }
     }
@@ -1555,19 +1590,19 @@ function formatTime(frame: number): string {
 
 // ヘルパー関数
 function getVisibleDuration(): number {
-    return TIMELINE_DURATION / timelineZoom;
+    return TIMELINE_DURATION_SEC / timelineZoom;
 }
 
 function getPixelsPerSecond(containerWidth: number): number {
     const usableWidth = containerWidth - TIMELINE_PADDING_LEFT - TIMELINE_PADDING_RIGHT;
-    const visibleDuration = getVisibleDuration();
-    return usableWidth / visibleDuration;
+    // ベースのピクセル密度 × ズーム倍率
+    return BASE_PIXELS_PERSEC * timelineZoom;
 }
 
 function getTotalTimelineWidth(containerWidth: number): number {
     const usableWidth = containerWidth - TIMELINE_PADDING_LEFT - TIMELINE_PADDING_RIGHT;
     const visibleDuration = getVisibleDuration();
-    return (TIMELINE_DURATION / visibleDuration) * usableWidth + TIMELINE_PADDING_LEFT + TIMELINE_PADDING_RIGHT;
+    return (TIMELINE_DURATION_SEC / visibleDuration) * usableWidth + TIMELINE_PADDING_LEFT + TIMELINE_PADDING_RIGHT;
 }
 
 function getTickInterval(): number {
@@ -1580,7 +1615,9 @@ function getTickInterval(): number {
 }
 
 function updateZoomDisplay(): void {
-    const percent = Math.round(timelineZoom * 100);
+    // 現在のピクセル密度をベースで割って%表示
+    const currentPixelsPerSecond = BASE_PIXELS_PERSEC * timelineZoom;
+    const percent = Math.round((currentPixelsPerSecond / BASE_PIXELS_PERSEC) * 100);
     if (zoomLevelDisplay) {
         zoomLevelDisplay.textContent = `${percent}%`;
     }
@@ -1596,15 +1633,13 @@ function zoomTimeline(factor: number): void {
     const container = timelineContainer;
     const containerWidth = container.clientWidth - 4;
 
-    // 再生ヘッドの現在位置（ピクセル）を計算
-    const oldPixelsPerSecond = getPixelsPerSecond(containerWidth);
+    // getPixelsPerSecond を使わず、直接 BASE_PIXELS_PERSEC を使う
+    const oldPixelsPerSecond = BASE_PIXELS_PERSEC * oldZoom;
     const headPixel = (currentFrame / CONFIG.fps) * oldPixelsPerSecond + TIMELINE_PADDING_LEFT;
 
-    // ズームを適用
     timelineZoom = newZoom;
 
-    // 再生ヘッドが同じ位置に見えるようにスクロール調整
-    const newPixelsPerSecond = getPixelsPerSecond(containerWidth);
+    const newPixelsPerSecond = BASE_PIXELS_PERSEC * newZoom;
     const newHeadPixel = (currentFrame / CONFIG.fps) * newPixelsPerSecond + TIMELINE_PADDING_LEFT;
 
     container.scrollLeft += (newHeadPixel - headPixel);
@@ -1737,6 +1772,7 @@ function addClip(type: ClipType): void {
     applyOverlapPrevention(newClip);
     clips.push(newClip);
     selectedId = newClip.id;
+    updateTimelineDuration(); 
     syncUI();
 }
 
@@ -1745,6 +1781,7 @@ function deleteSelected(): void {
     if (!selectedId) return;
     clips = clips.filter(c => c.id !== selectedId);
     selectedId = clips.length > 0 ? clips[0].id : null;
+    updateTimelineDuration(); 
     syncUI();
 }
 
@@ -1795,7 +1832,7 @@ function updateStart(): void {
     if (!selected) return;
     let val = parseInt(startInput.value, 10);
     if (isNaN(val) || val < 0) val = 0;
-    const maxStart = TIMELINE_DURATION * CONFIG.fps - selected.duration;
+    const maxStart = TIMELINE_DURATION - selected.duration;
     if (val > maxStart) val = maxStart;
     const oldStart = selected.startFrame;
     selected.startFrame = val;
@@ -1813,7 +1850,7 @@ function updateDuration(): void {
     if (!selected) return;
     let val = parseInt(durationInput.value, 10);
     if (isNaN(val) || val < 1) val = 1;
-    const maxStart = TIMELINE_DURATION * CONFIG.fps - val;
+    const maxStart = TIMELINE_DURATION - val;
     if (selected.startFrame > maxStart) selected.startFrame = Math.max(0, maxStart);
     const oldDuration = selected.duration;
     selected.duration = val;
@@ -1911,7 +1948,7 @@ function setupAllNumberInputs(): void {
             onCommit: (val: number) => {
                 const selected = getSelected();
                 if (!selected) return;
-                const maxStart = TIMELINE_DURATION * CONFIG.fps - val;
+                const maxStart = TIMELINE_DURATION - val;
                 if (selected.startFrame > maxStart) selected.startFrame = Math.max(0, maxStart);
                 const oldDuration = selected.duration;
                 selected.duration = val;
@@ -2384,6 +2421,7 @@ function loadProject(file: File): void {
             }
 
             // UIを更新
+            updateTimelineDuration();
             syncUI();
             drawPreview();
             drawTimeline();
@@ -2427,7 +2465,7 @@ if (loadBtn && loadInput) {
     drawPreview,
     drawTimeline,
     setFrame: (frame: number) => {
-        currentFrame = Math.max(0, Math.min(TIMELINE_DURATION * CONFIG.fps, frame));
+        currentFrame = Math.max(0, Math.min(TIMELINE_DURATION, frame));
         drawPreview();
         drawTimeline();
         console.log(`Frame set to ${currentFrame} (${(currentFrame / CONFIG.fps).toFixed(2)}s)`);
@@ -2496,7 +2534,7 @@ function init(): void {
     }
 
     selectedId = null;
-    totalTimeDisplay.textContent = formatTime(TIMELINE_DURATION * CONFIG.fps);
+    totalTimeDisplay.textContent = formatTime(TIMELINE_DURATION);
     currentLayerCount = CONFIG.layerCount;
     layerCountInput.value = String(CONFIG.layerCount);
     applyTheme(CONFIG.theme);
@@ -2509,12 +2547,15 @@ function init(): void {
     resolutionSelect.value = `${CONFIG.resolution.width}x${CONFIG.resolution.height}`;
     fpsSelect.value = String(CONFIG.fps);
 
+    // 初期ズームは 1.0（100%）を維持
+    timelineZoom = 1.0;
+    updateZoomDisplay();
+
     syncUI();
 
     bottomSection.style.height = '270px';
     bottomSection.style.minHeight = `${MIN_TIMELINE_HEIGHT}px`;
 }
-
 init();
 
 // -------- リサイズ --------

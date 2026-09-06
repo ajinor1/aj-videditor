@@ -40,8 +40,9 @@ const MAX_TIMELINE_FRAMES = 60 * 60 * CONFIG.fps; // 上限216000フレーム
 
 // -------- クリップタイプごとの色 --------
 const CLIP_COLORS = {
-    text: '#0077ff',   // 青
+    text: '#0065d8',   // 青
     shape: '#ff0055',  // ピンク
+    camera: '#29f078', // 緑
     // 今後追加: video: '#...', image: '#...'
 } as const;
 // 色の取得関数（後で拡張しやすいように）
@@ -62,11 +63,13 @@ const SLIDER_STAGES = {
 const NUMBER_CONFIGS = {
     x: { min: -8000, max: 8000, default: 0, stages: SLIDER_STAGES.coord },
     y: { min: -8000, max: 8000, default: 0, stages: SLIDER_STAGES.coord },
+    z: { min: -8000, max: 8000, default: 0, stages: SLIDER_STAGES.coord },
     rotation: { min: -1440, max: 1440, default: 0, stages: SLIDER_STAGES.rotation },
     width: { min: 0, max: 3200, default: 100, stages: SLIDER_STAGES.size },
     height: { min: 0, max: 3200, default: 100, stages: SLIDER_STAGES.size },
     stroke: { min: 0, max: 3200, default: 0, stages: SLIDER_STAGES.stroke },
     fontSize: { min: 0, max: 3200, default: 50, stages: SLIDER_STAGES.fontSize },
+    cameraRange: { min: 1, max: 98, default: 10, stages: null },
     start: { min: 0, max: 600, default: 0, stages: null },
     duration: { min: 1, max: 216000, default: 90, stages: null },
 };
@@ -174,7 +177,7 @@ function setupSliderDrag(
 }
 
 // -------- 型定義 --------
-type ClipType = 'text' | 'shape';
+type ClipType = 'text' | 'shape' | 'camera';
 type ShapeType = 'rectangle' | 'triangle' | 'circle' | 'pie' | 'arrow';
 
 interface Clip {
@@ -185,7 +188,9 @@ interface Clip {
     duration: number;
     x: number;
     y: number;
+    z: number;
     rotation: number;
+    cameraRange?: number;
     text?: string;
     fontSize?: number;
     color?: string;
@@ -218,15 +223,17 @@ const THEMES: Record<string, Record<string, string>> = {
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 
-// X,Y,Rotation等
+// X,Y,Z,Rotation等
 const xSlider = document.getElementById('xPos') as HTMLInputElement;
 const ySlider = document.getElementById('yPos') as HTMLInputElement;
+const zSlider = document.getElementById('zPos') as HTMLInputElement;
 const rotationSlider = document.getElementById('rotationSlider') as HTMLInputElement;
 const startInput = document.getElementById('startInput') as HTMLInputElement;
 const durationInput = document.getElementById('durationInput') as HTMLInputElement;
 // 数値入力欄
 const xNumber = document.getElementById('xNumber') as HTMLInputElement;
 const yNumber = document.getElementById('yNumber') as HTMLInputElement;
+const zNumber = document.getElementById('zNumber') as HTMLInputElement;
 const rotationNumber = document.getElementById('rotationNumber') as HTMLInputElement;
 
 // テキスト
@@ -253,6 +260,10 @@ const shapeHeightSlider = document.getElementById('shapeHeightSlider') as HTMLIn
 const strokeWidthNumber = document.getElementById('strokeWidthNumber') as HTMLInputElement;
 const shapeWidthNumber = document.getElementById('shapeWidthNumber') as HTMLInputElement;
 const shapeHeightNumber = document.getElementById('shapeHeightNumber') as HTMLInputElement;
+
+// ★ カメラ用DOM
+const cameraProperties = document.getElementById('cameraProperties') as HTMLDivElement;
+const cameraRangeInput = document.getElementById('cameraRangeInput') as HTMLInputElement;
 
 // 再生開始
 const playBtn = document.getElementById('playBtn') as HTMLButtonElement;
@@ -313,6 +324,7 @@ const MAX_ZOOM = 16.0;
 // ドラッグ中フラグ
 let isDraggingX = false;
 let isDraggingY = false;
+let isDraggingZ = false;
 let isDraggingRotation = false;
 let isDraggingStroke = false;
 let isDraggingWidth = false;
@@ -392,8 +404,8 @@ function setPropertiesEnabled(enabled: boolean): void {
         textInput, fontSelect, fontSizeSlider, colorPicker,
         shapeTypeSelect, fillColorPicker, strokeColorPicker,
         strokeWidthSlider, shapeWidthSlider, shapeHeightSlider,
-        xSlider, xNumber, ySlider, yNumber,
-        rotationSlider, rotationNumber, startInput, durationInput
+        xSlider, xNumber, ySlider, yNumber, zSlider, zNumber,
+        rotationSlider, rotationNumber, startInput, durationInput, cameraRangeInput
     ];
     for (const input of inputs) {
         input.disabled = !enabled;
@@ -684,35 +696,55 @@ function drawPreview(): void {
     const visibleClips = getClipsAtFrame(currentFrame);
     visibleClips.sort((a, b) => a.layerId - b.layerId);
 
-    for (const clip of visibleClips) {
-        const drawX = CONFIG.resolution.width / 2 + clip.x;
-        const drawY = CONFIG.resolution.height / 2 + clip.y;
+    // ★ 有効なカメラを取得
+    const activeCameras = getActiveCameras(currentFrame);
 
-        if (clip.type === 'text') {
-            const lines = clip.text?.split('\n') || [''];
-            const lineHeight = (clip.fontSize || 48) * 1.2;
+    for (const clip of visibleClips) {
+        // ★ カメラアイテムはプレビューに表示しない（スキップ）
+        if (clip.type === 'camera') continue;
+    
+        // ★ このクリップに適用されるカメラだけをフィルタリング
+        const applicableCameras = activeCameras.filter(camera => {
+            const range = camera.cameraRange || 10;
+            return clip.layerId > camera.layerId && clip.layerId <= camera.layerId + range;
+        });
+    
+        // ★ フィルタリングしたカメラで変換を適用
+        let transformedClip = clip;
+        if (applicableCameras.length > 0) {
+            transformedClip = applyCameraTransform(clip, applicableCameras);
+        }
+    
+        // ★ 変換後の座標で描画
+        const drawX = CONFIG.resolution.width / 2 + transformedClip.x;
+        const drawY = CONFIG.resolution.height / 2 + transformedClip.y;
+
+        if (transformedClip.type === 'text') {
+            const lines = transformedClip.text?.split('\n') || [''];
+            const lineHeight = (transformedClip.fontSize || 48) * 1.2;
             const totalHeight = lines.length * lineHeight;
             const startY = drawY - totalHeight / 2 + lineHeight / 2;
 
             ctx.save();
             ctx.translate(drawX, drawY);
-            ctx.rotate(clip.rotation * Math.PI / 180);
-            ctx.font = `${clip.fontSize || 48}px ${clip.fontFamily || DEFAULT_FONT}`;
+            ctx.rotate(transformedClip.rotation * Math.PI / 180);
+            ctx.font = `${transformedClip.fontSize || 48}px ${transformedClip.fontFamily || DEFAULT_FONT}`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             for (let i = 0; i < lines.length; i++) {
                 const yOffset = (i - (lines.length - 1) / 2) * lineHeight;
-                ctx.fillStyle = clip.color || '#ffffff';
+                ctx.fillStyle = transformedClip.color || '#ffffff';
                 ctx.fillText(lines[i], 0, yOffset);
             }
             ctx.restore();
 
+            // ★ 選択中の点線（変換後の座標を使用）
             if (clip.id === selectedId) {
                 ctx.save();
                 ctx.translate(drawX, drawY);
-                ctx.rotate(clip.rotation * Math.PI / 180);
+                ctx.rotate(transformedClip.rotation * Math.PI / 180);
 
-                ctx.font = `${clip.fontSize || 48}px ${clip.fontFamily || DEFAULT_FONT}`;
+                ctx.font = `${transformedClip.fontSize || 48}px ${transformedClip.fontFamily || DEFAULT_FONT}`;
 
                 let maxWidth = 0;
                 for (const line of lines) {
@@ -728,18 +760,19 @@ function drawPreview(): void {
                 ctx.setLineDash([]);
                 ctx.restore();
             }
-        } else {
+        } else if (transformedClip.type === 'shape') {
             ctx.save();
             ctx.translate(drawX, drawY);
-            drawShape(ctx, clip);
+            drawShape(ctx, transformedClip);
             ctx.restore();
 
+            // ★ 選択中の点線（変換後の座標を使用）
             if (clip.id === selectedId) {
-                const w = clip.width || 100;
-                const h = clip.height || 100;
+                const w = transformedClip.width || 100;
+                const h = transformedClip.height || 100;
                 ctx.save();
                 ctx.translate(drawX, drawY);
-                ctx.rotate(clip.rotation * Math.PI / 180);
+                ctx.rotate(transformedClip.rotation * Math.PI / 180);
                 ctx.strokeStyle = 'rgba(255,255,255,0.4)';
                 ctx.lineWidth = 4;
                 ctx.setLineDash([4, 6]);
@@ -748,6 +781,7 @@ function drawPreview(): void {
                 ctx.restore();
             }
         }
+        // camera は上で continue してるのでここには来ない
     }
 }
 
@@ -779,6 +813,35 @@ function getCanvasCoords(e: MouseEvent): { x: number, y: number } {
         x: (e.clientX - rect.left - offsetX) * scale,
         y: (e.clientY - rect.top - offsetY) * scale
     };
+}
+
+// ★ カメラ変換を適用する関数（複数カメラ対応）
+function applyCameraTransform(clip: Clip, cameras: Clip[]): Clip {
+    let transformedClip = { ...clip };
+    
+    for (const camera of cameras) {
+        transformedClip = {
+            ...transformedClip,
+            x: transformedClip.x - camera.x,
+            y: transformedClip.y - camera.y,
+            z: transformedClip.z - camera.z,
+        };
+    }
+    
+    return transformedClip;
+}
+
+// ★ 現在のフレームで有効なカメラアイテムを取得
+function getActiveCameras(frame: number): Clip[] {
+    const allCameras = clips.filter(c => c.type === 'camera');
+    const activeCameras: Clip[] = [];
+    for (const camera of allCameras) {
+        // ★ カメラが有効なら、それだけでOK！
+        if (frame >= camera.startFrame && frame < camera.startFrame + camera.duration) {
+            activeCameras.push(camera);
+        }
+    }
+    return activeCameras;
 }
 
 // -------- プレビュードラッグ --------
@@ -1001,15 +1064,19 @@ function drawTimeline(): void {
             const isDragging = isDraggingClip && dragClipId === clip.id;
             const opacity = isDragging ? '0.5' : '0.8';
             
-            // 図形の名前を先頭大文字に
-            const shapeName = clip.shapeType || 'shape';
-            const capitalized = shapeName.charAt(0).toUpperCase() + shapeName.slice(1);
-            
-            // ラベル生成（テキストはそのまま、図形は先頭大文字＋スペース）
-            const label = clip.type === 'text'
-                ? '\u00A0\u00A0\u00A0' + (clip.text || 'Text').replace(/\n/g, ' ')
-                : '\u00A0\u00A0\u00A0' + capitalized;
-            
+            // ラベル生成
+            let label = '';
+            if (clip.type === 'text') {
+                label = '\u00A0\u00A0\u00A0' + (clip.text || 'Text').replace(/\n/g, ' ');
+            } else if (clip.type === 'shape') {
+                const shapeName = clip.shapeType || 'shape';
+                const capitalized = shapeName.charAt(0).toUpperCase() + shapeName.slice(1);
+                label = '\u00A0\u00A0\u00A0' + capitalized;
+            } else if (clip.type === 'camera') {
+                label = '\u00A0\u00A0\u00A0' + 'Camera';  // ★ 追加
+            } else {
+                label = '\u00A0\u00A0\u00A0' + 'Unknown';
+            }
             const endFrame = clip.startFrame + clip.duration;
             
             // 最小幅を1pxに変更
@@ -1654,7 +1721,15 @@ function syncUI(): void {
     const hasClips = clips.length > 0;
 
     if (selected && hasClips) {
-        typeDisplay.textContent = selected.type === 'text' ? 'テキスト' : '図形';
+        if (selected.type === 'text') {
+            typeDisplay.textContent = 'テキスト';
+        } else if (selected.type === 'shape') {
+            typeDisplay.textContent = '図形';
+        } else if (selected.type === 'camera') {
+            typeDisplay.textContent = 'カメラ';  // ★ 追加
+        } else {
+            typeDisplay.textContent = '-';
+        }
 
         if (selected.type === 'text') {
             textProperties.style.display = '';
@@ -1664,7 +1739,7 @@ function syncUI(): void {
             fontSizeSlider.value = String(selected.fontSize || 50);
             fontSizeNumber.value = String(selected.fontSize || 50);
             colorPicker.value = selected.color || '#ffffff';
-        } else {
+        } else if (selected.type === 'shape') {
             textProperties.style.display = 'none';
             shapeProperties.style.display = '';
             shapeTypeSelect.value = selected.shapeType || 'rectangle';
@@ -1677,19 +1752,28 @@ function syncUI(): void {
             shapeWidthNumber.value = String(selected.width || 100);
             shapeHeightSlider.value = String(selected.height || 100);
             shapeHeightNumber.value = String(selected.height || 100);
+        } else if (selected.type === 'camera') {
+            textProperties.style.display = 'none';
+            shapeProperties.style.display = 'none';
+            cameraProperties.style.display = '';  // ★ 表示
+            cameraRangeInput.value = String(selected.cameraRange || 10);
         }
 
         xSlider.value = String(selected.x);
-        xNumber.value = String(selected.x);
         ySlider.value = String(selected.y);
+        zSlider.value = String(selected.z);
+        xNumber.value = String(selected.x);
         yNumber.value = String(selected.y);
+        zNumber.value = String(selected.z);
         rotationSlider.value = String(selected.rotation);
         rotationNumber.value = String(selected.rotation);
+
         startInput.value = String(selected.startFrame);
         durationInput.value = String(selected.duration);
 
         updateSliderRange(xSlider, selected.x, SLIDER_STAGES.coord, isDraggingX);
         updateSliderRange(ySlider, selected.y, SLIDER_STAGES.coord, isDraggingY);
+        updateSliderRange(ySlider, selected.z, SLIDER_STAGES.coord, isDraggingZ);
         updateSliderRange(rotationSlider, selected.rotation, SLIDER_STAGES.rotation, isDraggingRotation);
         updateSliderRangePositive(strokeWidthSlider, selected.strokeWidth || 0, SLIDER_STAGES.stroke, isDraggingStroke);
         updateSliderRangePositive(shapeWidthSlider, selected.width || 100, SLIDER_STAGES.size, isDraggingWidth);
@@ -1744,13 +1828,14 @@ function addClip(type: ClipType): void {
             duration: duration,
             x: 0,
             y: 0,
+            z: 0,
             rotation: 0,
             text: 'New Text',
             fontSize: 50,
             color: '#ffffff',
             fontFamily: DEFAULT_FONT,
         };
-    } else {
+    } else if (type === 'shape') {
         newClip = {
             id: generateId(),
             type: 'shape',
@@ -1759,6 +1844,7 @@ function addClip(type: ClipType): void {
             duration: duration,
             x: 0,
             y: 0,
+            z: 0,
             rotation: 0,
             shapeType: 'rectangle',
             fillColor: '#ffffff',
@@ -1767,6 +1853,23 @@ function addClip(type: ClipType): void {
             width: 100,
             height: 100,
         };
+    } else if (type === 'camera') {
+        newClip = {
+            id: generateId(),
+            type: 'camera',
+            layerId: layerId,
+            startFrame: startFrame,
+            duration: duration,
+            x: 0,
+            y: 0,
+            z: 0,
+            rotation: 0,
+            cameraRange: 10,  // ★ デフォルト範囲10
+        };
+    } else {
+        // 未対応のタイプが来たときの安全処理
+        console.warn('未対応のクリップタイプ:', type);
+        return;
     }
 
     applyOverlapPrevention(newClip);
@@ -1795,8 +1898,8 @@ function updateSelected(): void {
         selected.fontFamily = fontSelect.value;
         selected.fontSize = parseFloat(fontSizeSlider.value) || 50;
         selected.color = colorPicker.value;
-
         fontSizeNumber.value = String(selected.fontSize);
+
     } else if (selected.type === 'shape') {
         selected.shapeType = shapeTypeSelect.value as ShapeType;
         selected.fillColor = fillColorPicker.value;
@@ -1804,20 +1907,24 @@ function updateSelected(): void {
         selected.strokeWidth = parseFloat(strokeWidthSlider.value) || 0;
         selected.width = parseFloat(shapeWidthSlider.value) || 100;
         selected.height = parseFloat(shapeHeightSlider.value) || 100;
-
         // selected.typeがtextだった場合、width,height,strokeの項目が存在しないため、selected.typeがshapeの場合のみ更新する
         strokeWidthNumber.value = String(selected.strokeWidth);
         shapeWidthNumber.value = String(selected.width);
         shapeHeightNumber.value = String(selected.height);
-
+        
+    } else if (selected.type === 'camera') {  // ★ 追加
+        // ★ cameraRange を更新
+        selected.cameraRange = parseInt(cameraRangeInput.value, 10) || 10;
     }
 
     selected.x = parseFloat(xSlider.value) || 0;
     selected.y = parseFloat(ySlider.value) || 0;
+    selected.z = parseFloat(zSlider.value) || 0;
     selected.rotation = parseFloat(rotationSlider.value) || 0;
 
     xNumber.value = String(selected.x);
     yNumber.value = String(selected.y);
+    zNumber.value = String(selected.z);
     rotationNumber.value = String(selected.rotation);
 
 
@@ -1897,6 +2004,23 @@ function setupAllNumberInputs(): void {
                 ySlider.value = String(val);
                 yNumber.value = String(val);
                 if (!isDraggingX && !isDraggingY) updateSliderRange(ySlider, val, SLIDER_STAGES.coord, false);
+                drawPreview();
+            }
+        },
+        // ===== Z座標 =====
+        {
+            input: zNumber,
+            slider: zSlider,
+            config: NUMBER_CONFIGS.z,
+            getIsDragging: () => isDraggingZ,
+            updateFn: (val: number) => updateSliderRange(zSlider, val, SLIDER_STAGES.coord, false),
+            onCommit: (val: number) => {
+                const selected = getSelected();
+                if (!selected) return;
+                selected.z = val;
+                zSlider.value = String(val);
+                zNumber.value = String(val);
+                if (!isDraggingZ) updateSliderRange(zSlider, val, SLIDER_STAGES.coord, false);
                 drawPreview();
             }
         },
@@ -2027,6 +2151,27 @@ function setupAllNumberInputs(): void {
                 shapeHeightNumber.value = String(val);
                 if (!isDraggingHeight) updateSliderRangePositive(shapeHeightSlider, val, SLIDER_STAGES.size, false);
                 drawPreview();
+            }
+        },
+        // ===== Camera Range =====
+        {
+            input: cameraRangeInput,
+            slider: cameraRangeInput,  // ★ スライダーがないから同じ input を指定
+            config: {
+                min: 1,
+                max: 98,
+                default: 10,
+                stages: null,
+            },
+            getIsDragging: () => false,
+            updateFn: () => {},
+            onCommit: (val: number) => {
+                const selected = getSelected();
+                if (!selected || selected.type !== 'camera') return;
+                selected.cameraRange = val;
+                cameraRangeInput.value = String(val);
+                drawPreview();  // ★ 追加！Range変更時にプレビューを更新
+                drawTimeline(); // ★ タイムラインも更新
             }
         }
     ];
@@ -2198,6 +2343,14 @@ addShapeBtn.addEventListener('click', () => {
     addClip('shape');
 });
 
+// ★ 追加: カメラ追加ボタン
+const addCameraBtn = document.getElementById('addCameraBtn') as HTMLButtonElement;
+if (addCameraBtn) {
+    addCameraBtn.addEventListener('click', () => {
+        addClip('camera');
+    });
+}
+
 // -------- イベント登録 --------
 // テキスト入力のリアルタイム更新
 textInput.addEventListener('input', updateSelected);
@@ -2217,6 +2370,7 @@ shapeHeightSlider.addEventListener('input', updateSelected);
 
 xSlider.addEventListener('input', updateSelected);
 ySlider.addEventListener('input', updateSelected);
+zSlider.addEventListener('input', updateSelected);
 rotationSlider.addEventListener('input', updateSelected);
 
 setupSliderDrag(xSlider,
@@ -2242,6 +2396,19 @@ setupSliderDrag(ySlider,
         }
     }
 );
+
+setupSliderDrag(zSlider,
+    () => { isDraggingZ = true; },
+    () => {
+        isDraggingZ = false;
+        const selected = getSelected();
+        if (selected) {
+            updateSliderRange(zSlider, selected.z, SLIDER_STAGES.coord, false);
+            drawPreview();
+        }
+    }
+);
+
 
 setupSliderDrag(rotationSlider,
     () => { isDraggingRotation = true; },

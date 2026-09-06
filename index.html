@@ -1303,6 +1303,17 @@
                         </div>
                     </div>
                     
+                    <!-- ★ カメラ用のプロパティ（カメラ選択時のみ表示） -->
+                    <div id="cameraProperties" style="display:none;">
+                        <div class="control-group">
+                            <label>Range</label>
+                            <div class="time-input-group">
+                                <input type="number" id="cameraRangeInput" value="10" min="1" max="98" />
+                                <span class="unit">layers</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <hr class="separator" />
 
                     <div class="control-group">
@@ -1319,6 +1330,14 @@
                         <div class="coord-input">
                             <span>Y:</span>
                             <input type="number" id="yNumber" value="0" min="-8000" max="8000" />
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Z</label>
+                        <input type="range" id="zPos" min="-500" max="500" value="0" step="1" />
+                        <div class="coord-input">
+                            <span>Z:</span>
+                            <input type="number" id="zNumber" value="0" min="-8000" max="8000" />
                         </div>
                     </div>
                     <div class="control-group">
@@ -1365,6 +1384,7 @@
                     <div class="timeline-actions">
                         <button class="btn-primary btn-sm" id="addTextBtn">📝 テキスト</button>
                         <button class="btn-primary btn-sm" id="addShapeBtn">⬜ 図形</button>
+                        <button class="btn-primary btn-sm" id="addCameraBtn">📷 カメラ</button>
                         <button class="btn-primary btn-sm btn-danger" id="deleteBtn">×</button>
 
                         <!-- ★ 追加: プロジェクト保存/読み込みボタン -->

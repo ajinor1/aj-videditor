@@ -314,7 +314,9 @@ let idCounter = 0;
 let currentFrame = 0;
 let isPlaying = false;
 let playInterval: number | null = null;
-let currentLayerCount = CONFIG.layerCount;
+let currentLayerCount = CONFIG.layerCount; 
+
+let currentProjectName = '無題';
 
 // ズーム関連
 let timelineZoom = 1.0;
@@ -2499,8 +2501,31 @@ function setBackgroundColor(color: string): void {
 // プロジェクト保存
 function saveProject(): void {
     try {
+        // ★ デフォルトのファイル名を生成（日付入り）
+        const defaultFileName = `project-${new Date().toISOString().slice(0, 10)}`;
+
+        // ★ 現在のプロジェクト名をデフォルト値として表示
+        const defaultName = currentProjectName !== '未命名' ? currentProjectName : defaultFileName;
+
+        // ★ プロンプトでファイル名を入力させる
+        const inputName = prompt('ファイル名を入力してください（.ajpは自動で付与されます）', defaultName);
+        if (inputName === null) {
+            // キャンセルされたら何もしない
+            return;
+        }
+
+        // ★ 入力された名前を整形（空文字ならデフォルトに戻す）
+        let safeName = inputName.trim() || defaultFileName;
+
+        // ★ 禁止文字を除去（\ / : * ? " < > |）
+        safeName = safeName.replace(/[\\/:*?"<>|]/g, '');
+
+        // ★ プロジェクト名を更新
+        currentProjectName = safeName;
+
         const projectData = {
             version: '1.0',
+            projectName: safeName,  // ★ 追加
             clips: clips,
             config: {
                 preventOverlap: CONFIG.preventOverlap,
@@ -2521,13 +2546,13 @@ function saveProject(): void {
 
         const a = document.createElement('a');
         a.href = url;
-        a.download = `project-${new Date().toISOString().slice(0, 10)}.ajp`;
+        a.download = `${safeName}.ajp`;  // ★ 入力されたファイル名で保存
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
 
         URL.revokeObjectURL(url);
-        console.log('Project saved successfully!');
+        console.log(`Project saved successfully! (${safeName}.ajp)`);
     } catch (err) {
         console.error('Save error:', err);
         alert('プロジェクトの保存に失敗しました。');
@@ -2551,6 +2576,13 @@ function loadProject(file: File): void {
 
             // クリップデータを復元（IDカウンターはリセットしない）
             clips = data.clips || [];
+
+            // ★ プロジェクト名を復元
+            if (data.projectName) {
+                currentProjectName = data.projectName;
+            } else {
+                currentProjectName = '無題';
+            }
 
             // 設定を復元
             if (data.config) {
@@ -2607,12 +2639,120 @@ function loadProject(file: File): void {
 }
 
 // プロジェクト保存/読み込みのイベント
+// ★ モーダル用DOM取得
+const saveProjectModal = document.getElementById('saveProjectModal') as HTMLDivElement;
+const saveProjectNameInput = document.getElementById('saveProjectNameInput') as HTMLInputElement;
+const saveProjectConfirmBtn = document.getElementById('saveProjectConfirmBtn') as HTMLButtonElement;
+const saveProjectCancelBtn = document.getElementById('saveProjectCancelBtn') as HTMLButtonElement;
+
+// ★ モーダルを開く
+function openSaveProjectModal(): void {
+    const defaultName = currentProjectName !== '無題' ? currentProjectName : `project-${new Date().toISOString().slice(0, 10)}`;
+    saveProjectNameInput.value = defaultName;
+    saveProjectNameInput.select();
+    saveProjectModal.classList.add('active');
+}
+
+// ★ モーダルを閉じる
+function closeSaveProjectModal(): void {
+    saveProjectModal.classList.remove('active');
+}
+
+// ★ 保存実行（モーダルから呼ばれる）
+function confirmSaveProject(): void {
+    let name = saveProjectNameInput.value.trim() || `project-${new Date().toISOString().slice(0, 10)}`;
+    name = name.replace(/[\\/:*?"<>|]/g, '');
+    if (!name) {
+        name = `project-${new Date().toISOString().slice(0, 10)}`;
+    }
+    currentProjectName = name;
+  closeSaveProjectModal();
+    executeSaveProject(name);
+}
+
+// ★ 実際の保存処理
+function executeSaveProject(fileName: string): void {
+    try {
+        const projectData = {
+            version: '1.0',
+            projectName: fileName,
+            clips: clips,
+            config: {
+                preventOverlap: CONFIG.preventOverlap,
+                bgColor: CONFIG.bgColor,
+                resolution: CONFIG.resolution,
+                fps: CONFIG.fps,
+                layerCount: CONFIG.layerCount,
+            },
+            currentFrame: currentFrame,
+            selectedId: selectedId,
+            layerCount: currentLayerCount,
+            timestamp: new Date().toISOString(),
+        };
+
+        const json = JSON.stringify(projectData, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${fileName}.ajp`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        URL.revokeObjectURL(url);
+        console.log(`Project saved successfully! (${fileName}.ajp)`);
+    } catch (err) {
+        console.error('Save error:', err);
+        alert('プロジェクトの保存に失敗しました。');
+    }
+}
+
+// ★ イベント登録
+if (saveProjectConfirmBtn) {
+    saveProjectConfirmBtn.addEventListener('click', confirmSaveProject);
+}
+if (saveProjectCancelBtn) {
+    saveProjectCancelBtn.addEventListener('click', closeSaveProjectModal);
+}
+if (saveProjectModal) {
+    saveProjectModal.addEventListener('click', (e) => {
+        if (e.target === saveProjectModal) closeSaveProjectModal();
+    });
+}
+if (saveProjectNameInput) {
+    saveProjectNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            confirmSaveProject();
+        }
+        if (e.key === 'Escape') {
+            closeSaveProjectModal();
+        }
+    });
+}
+
+// プロジェクト保存/読み込みのイベント
 const saveBtn = document.getElementById('saveProjectBtn') as HTMLButtonElement;
 const loadBtn = document.getElementById('loadProjectBtn') as HTMLButtonElement;
 const loadInput = document.getElementById('loadProjectInput') as HTMLInputElement;
 
 if (saveBtn) {
-    saveBtn.addEventListener('click', saveProject);
+    saveBtn.addEventListener('click', openSaveProjectModal);  // ★ 変更！
+}
+
+if (loadBtn && loadInput) {
+    loadBtn.addEventListener('click', () => {
+        loadInput.click();
+    });
+    loadInput.addEventListener('change', (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (file) {
+            loadProject(file);
+        }
+        loadInput.value = '';
+    });
 }
 
 if (loadBtn && loadInput) {

@@ -1099,6 +1099,91 @@
                 padding: 6px 14px;
             }
         }
+        /* ★ モーダル（オーバーレイ） */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-window {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px;
+            width: 420px;
+            max-width: 90vw;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+        }
+
+        .modal-window h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .modal-window p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .modal-window input[type="text"] {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 16px;
+            outline: none;
+            transition: border 0.2s;
+            box-sizing: border-box;
+        }
+        .modal-window input[type="text"]:focus {
+            border-color: var(--accent);
+        }
+
+        .modal-hint {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 6px;
+            margin-bottom: 20px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-secondary {
+            padding: 8px 24px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+        }
+        .btn-secondary:hover {
+            background: var(--bg-primary);
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
     <script>eruda.init();</script>
@@ -1396,7 +1481,18 @@
             </div>
         </div>
     </div>
-
+    <div class="modal-overlay" id="saveProjectModal">
+        <div class="modal-window">
+            <h2>プロジェクトを保存</h2>
+            <p>ファイル名を入力してください</p>
+            <input type="text" id="saveProjectNameInput" placeholder="ファイル名を入力" />
+            <p class="modal-hint">※ .ajp は自動で付与されます</p>
+            <div class="modal-actions">
+                <button class="btn-primary" id="saveProjectConfirmBtn">保存</button>
+                <button class="btn-secondary" id="saveProjectCancelBtn">キャンセル</button>
+            </div>
+        </div>
+    </div>
     <script type="module" src="./dist/main.js"></script>
 </body>
 </html>

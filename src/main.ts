@@ -1034,6 +1034,7 @@ function drawTimeline(): void {
 
     let html = '';
 
+    // ★ ルーラー（プレイヘッドなし）
     html += `<div class="timeline-ruler" style="height:${TIMELINE_HEADER_HEIGHT}px; padding-left:${TIMELINE_PADDING_LEFT}px; padding-right:${TIMELINE_PADDING_RIGHT}px;">`;
     html += `<div class="timeline-ruler-inner" style="position:relative; height:100%; width:100%;">`;
     for (let s = 0; s <= TIMELINE_DURATION_SEC; s++) {
@@ -1045,9 +1046,16 @@ function drawTimeline(): void {
         }
         html += `</div>`;
     }
-    const headX = (currentFrame / CONFIG.fps) * pixelsPerSecond;
-    html += `<div class="timeline-playhead" style="left:${headX}px;"></div>`;
     html += `</div></div>`;
+
+    // ★ プレイヘッドの位置を計算（ルーラーのpadding-leftを考慮）
+    const headX = TIMELINE_PADDING_LEFT + (currentFrame / CONFIG.fps) * pixelsPerSecond;
+    const totalTimelineHeight = TIMELINE_HEADER_HEIGHT + (currentLayerCount * TIMELINE_HEIGHT);
+    // ★ プレイヘッド（トラック全体に表示）
+    html += `<div class="timeline-playhead-container" style="position:relative; width:100%; height:${totalTimelineHeight}px;">`;
+    html += `<div class="timeline-playhead" style="left:${headX}px; position:absolute; top:0; width:2px; height:100%; background:var(--accent); z-index:10; pointer-events:none;"></div>`;
+    // ★ ルーラー上のドット（丸）
+    html += `<div class="timeline-playhead-dot" style="position:absolute; top:-6px; left:${headX - 4}px; width:10px; height:10px; background:var(--accent); border-radius:50%; z-index:11; pointer-events:none;"></div>`;
 
     for (let layerId = 1; layerId <= currentLayerCount; layerId++) {
         const layerLabel = String(layerId).padStart(2, '0');
@@ -1063,7 +1071,7 @@ function drawTimeline(): void {
             const color = getClipColor(clip.type);
             const isDragging = isDraggingClip && dragClipId === clip.id;
             const opacity = isDragging ? '0.5' : '0.8';
-            
+
             // ラベル生成
             let label = '';
             if (clip.type === 'text') {
@@ -1073,17 +1081,17 @@ function drawTimeline(): void {
                 const capitalized = shapeName.charAt(0).toUpperCase() + shapeName.slice(1);
                 label = '\u00A0\u00A0\u00A0' + capitalized;
             } else if (clip.type === 'camera') {
-                label = '\u00A0\u00A0\u00A0' + 'Camera';  // ★ 追加
+                label = '\u00A0\u00A0\u00A0' + 'Camera';
             } else {
                 label = '\u00A0\u00A0\u00A0' + 'Unknown';
             }
             const endFrame = clip.startFrame + clip.duration;
-            
+
             // 最小幅を1pxに変更
             const oneFrameWidth = pixelsPerSecond / CONFIG.fps;
             const minWidth = Math.max(1, oneFrameWidth * 0.5);
             const displayWidth = Math.max(width, minWidth);
-            
+
             html += `<div class="timeline-clip ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''}" 
                       data-clip-id="${clip.id}"
                       data-startframe="${clip.startFrame}"
@@ -1095,6 +1103,9 @@ function drawTimeline(): void {
 
         html += `</div></div>`;
     }
+
+    // ★ playhead-container を閉じる（トラックの後ろで閉じる）
+    html += `</div>`; // timeline-playhead-container 終了
 
     html += `<div class="timeline-add-layer">`;
     html += `<button class="btn-primary btn-sm" id="addLayerBtn" style="width:100%; max-width:200px;">+ Add Layer</button>`;
@@ -1121,31 +1132,25 @@ function drawTimeline(): void {
     });
 
     document.querySelectorAll('.timeline-clip').forEach(el => {
-        // 修正箇所: リサイズかドラッグかを判定
         el.addEventListener('mousedown', (e: MouseEvent) => {
             const id = el.getAttribute('data-clip-id');
             if (!id) return;
-    
+
             const rect = el.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const elWidth = rect.width;
-            const edgeThreshold = 8; // 端から8px以内をリサイズと判定
-    
-            // 左端か右端かを判定
+            const edgeThreshold = 8;
+
             if (mouseX < edgeThreshold) {
-                // 左端リサイズ
                 startResizeClip(e, id, 'left');
             } else if (mouseX > elWidth - edgeThreshold) {
-                // 右端リサイズ
                 startResizeClip(e, id, 'right');
             } else {
-                // それ以外は通常のドラッグ
                 startClipDrag(e, id);
             }
         });
     });
 
-    // ホバー時にカーソルを変更（リサイズ可能な端を示す）
     document.querySelectorAll('.timeline-clip').forEach(el => {
         el.addEventListener('mousemove', (e: MouseEvent) => {
             if (isResizingClip || isDraggingClip) return;
@@ -1153,14 +1158,14 @@ function drawTimeline(): void {
             const mouseX = e.clientX - rect.left;
             const elWidth = rect.width;
             const edgeThreshold = 8;
-    
+
             if (mouseX < edgeThreshold || mouseX > elWidth - edgeThreshold) {
                 el.style.cursor = 'ew-resize';
             } else {
                 el.style.cursor = 'grab';
             }
         });
-    
+
         el.addEventListener('mouseleave', () => {
             if (!isResizingClip && !isDraggingClip) {
                 el.style.cursor = 'grab';
@@ -1242,30 +1247,29 @@ function drawTimeline(): void {
     currentTimeDisplay.textContent = formatTime(currentFrame);
     totalTimeDisplay.textContent = formatTime(TIMELINE_DURATION);
 
-     // -------- ズームコントロールを追加 --------
     const timelineControls = document.querySelector('.timeline-controls');
     if (timelineControls && !document.getElementById('zoomControls')) {
         const zoomControls = document.createElement('div');
         zoomControls.id = 'zoomControls';
         zoomControls.style.cssText = 'display:flex; align-items:center; gap:6px; margin-left:12px;';
-        
+
         zoomOutBtn = document.createElement('button');
         zoomOutBtn.id = 'zoomOutBtn';
         zoomOutBtn.className = 'btn-primary btn-sm';
         zoomOutBtn.textContent = '−';
         zoomOutBtn.style.cssText = 'padding:2px 10px; font-size:16px;';
-        
+
         zoomLevelDisplay = document.createElement('span');
         zoomLevelDisplay.id = 'zoomLevel';
         zoomLevelDisplay.style.cssText = 'font-size:12px; color:var(--text-secondary); min-width:44px; text-align:center;';
         updateZoomDisplay();
-        
+
         zoomInBtn = document.createElement('button');
         zoomInBtn.id = 'zoomInBtn';
         zoomInBtn.className = 'btn-primary btn-sm';
         zoomInBtn.textContent = '＋';
         zoomInBtn.style.cssText = 'padding:2px 10px; font-size:16px;';
-        
+
         zoomControls.appendChild(zoomOutBtn);
         zoomControls.appendChild(zoomLevelDisplay);
         zoomControls.appendChild(zoomInBtn);
@@ -1357,10 +1361,9 @@ function onResizeMove(e: MouseEvent): void {
 
     } else if (resizeEdge === 'right') {
         // 右端リサイズ: マウスの位置にendFrameを移動
-        const maxDuration = TIMELINE_DURATION - clip.startFrame;
-        let newEndFrame = Math.max(clip.startFrame + 1, Math.min(TIMELINE_DURATION, mouseFrame));
+        const maxDuration = MAX_TIMELINE_FRAMES - clip.startFrame;
+        let newEndFrame = Math.max(clip.startFrame + 1, Math.min(MAX_TIMELINE_FRAMES, mouseFrame));
         let newDuration = newEndFrame - clip.startFrame;
-
         // 一時的に適用
         clip.duration = newDuration;
 

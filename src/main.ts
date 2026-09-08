@@ -261,7 +261,7 @@ const strokeWidthNumber = document.getElementById('strokeWidthNumber') as HTMLIn
 const shapeWidthNumber = document.getElementById('shapeWidthNumber') as HTMLInputElement;
 const shapeHeightNumber = document.getElementById('shapeHeightNumber') as HTMLInputElement;
 
-// ★ カメラ用DOM
+// カメラ用DOM
 const cameraProperties = document.getElementById('cameraProperties') as HTMLDivElement;
 const cameraRangeInput = document.getElementById('cameraRangeInput') as HTMLInputElement;
 
@@ -698,26 +698,26 @@ function drawPreview(): void {
     const visibleClips = getClipsAtFrame(currentFrame);
     visibleClips.sort((a, b) => a.layerId - b.layerId);
 
-    // ★ 有効なカメラを取得
+    // 有効なカメラを取得
     const activeCameras = getActiveCameras(currentFrame);
 
     for (const clip of visibleClips) {
-        // ★ カメラアイテムはプレビューに表示しない（スキップ）
+        // カメラアイテムはプレビューに表示しない（スキップ）
         if (clip.type === 'camera') continue;
     
-        // ★ このクリップに適用されるカメラだけをフィルタリング
+        // このクリップに適用されるカメラだけをフィルタリング
         const applicableCameras = activeCameras.filter(camera => {
             const range = camera.cameraRange || 10;
             return clip.layerId > camera.layerId && clip.layerId <= camera.layerId + range;
         });
     
-        // ★ フィルタリングしたカメラで変換を適用
+        // フィルタリングしたカメラで変換を適用
         let transformedClip = clip;
         if (applicableCameras.length > 0) {
             transformedClip = applyCameraTransform(clip, applicableCameras);
         }
     
-        // ★ 変換後の座標で描画
+        // 変換後の座標で描画
         const drawX = CONFIG.resolution.width / 2 + transformedClip.x;
         const drawY = CONFIG.resolution.height / 2 + transformedClip.y;
 
@@ -740,7 +740,7 @@ function drawPreview(): void {
             }
             ctx.restore();
 
-            // ★ 選択中の点線（変換後の座標を使用）
+            // 選択中の点線（変換後の座標を使用）
             if (clip.id === selectedId) {
                 ctx.save();
                 ctx.translate(drawX, drawY);
@@ -768,7 +768,7 @@ function drawPreview(): void {
             drawShape(ctx, transformedClip);
             ctx.restore();
 
-            // ★ 選択中の点線（変換後の座標を使用）
+            // 選択中の点線（変換後の座標を使用）
             if (clip.id === selectedId) {
                 const w = transformedClip.width || 100;
                 const h = transformedClip.height || 100;
@@ -817,7 +817,7 @@ function getCanvasCoords(e: MouseEvent): { x: number, y: number } {
     };
 }
 
-// ★ カメラ変換を適用する関数（複数カメラ対応）
+// カメラ変換を適用する関数（複数カメラ対応）
 function applyCameraTransform(clip: Clip, cameras: Clip[]): Clip {
     let transformedClip = { ...clip };
     
@@ -833,12 +833,11 @@ function applyCameraTransform(clip: Clip, cameras: Clip[]): Clip {
     return transformedClip;
 }
 
-// ★ 現在のフレームで有効なカメラアイテムを取得
+// 現在のフレームで有効なカメラアイテムを取得
 function getActiveCameras(frame: number): Clip[] {
     const allCameras = clips.filter(c => c.type === 'camera');
     const activeCameras: Clip[] = [];
     for (const camera of allCameras) {
-        // ★ カメラが有効なら、それだけでOK！
         if (frame >= camera.startFrame && frame < camera.startFrame + camera.duration) {
             activeCameras.push(camera);
         }
@@ -1036,7 +1035,7 @@ function drawTimeline(): void {
 
     let html = '';
 
-    // ★ ルーラー（プレイヘッドなし）
+    // ルーラー（プレイヘッドなし）
     html += `<div class="timeline-ruler" style="height:${TIMELINE_HEADER_HEIGHT}px; padding-left:${TIMELINE_PADDING_LEFT}px; padding-right:${TIMELINE_PADDING_RIGHT}px;">`;
     html += `<div class="timeline-ruler-inner" style="position:relative; height:100%; width:100%;">`;
     for (let s = 0; s <= TIMELINE_DURATION_SEC; s++) {
@@ -1050,13 +1049,13 @@ function drawTimeline(): void {
     }
     html += `</div></div>`;
 
-    // ★ プレイヘッドの位置を計算（ルーラーのpadding-leftを考慮）
+    // プレイヘッドの位置を計算（ルーラーのpadding-leftを考慮）
     const headX = TIMELINE_PADDING_LEFT + (currentFrame / CONFIG.fps) * pixelsPerSecond;
     const totalTimelineHeight = TIMELINE_HEADER_HEIGHT + (currentLayerCount * TIMELINE_HEIGHT);
-    // ★ プレイヘッド（トラック全体に表示）
+    // プレイヘッド（トラック全体に表示）
     html += `<div class="timeline-playhead-container" style="position:relative; width:100%; height:${totalTimelineHeight}px;">`;
     html += `<div class="timeline-playhead" style="left:${headX}px; position:absolute; top:0; width:2px; height:100%; background:var(--accent); z-index:10; pointer-events:none;"></div>`;
-    // ★ ルーラー上のドット（丸）
+    // ルーラー上のドット（丸）
     html += `<div class="timeline-playhead-dot" style="position:absolute; top:-6px; left:${headX - 4}px; width:10px; height:10px; background:var(--accent); border-radius:50%; z-index:11; pointer-events:none;"></div>`;
 
     for (let layerId = 1; layerId <= currentLayerCount; layerId++) {
@@ -1106,7 +1105,7 @@ function drawTimeline(): void {
         html += `</div></div>`;
     }
 
-    // ★ playhead-container を閉じる（トラックの後ろで閉じる）
+    // playhead-container を閉じる（トラックの後ろで閉じる）
     html += `</div>`; // timeline-playhead-container 終了
 
     html += `<div class="timeline-add-layer">`;
@@ -1577,7 +1576,7 @@ function startPlayback(): void {
     if (isPlaying) return;
     if (currentFrame >= TIMELINE_DURATION) currentFrame = 0;
     isPlaying = true;
-    playBtn.textContent = '⏸';
+    playBtn.textContent = 'Ⅱ';
     playBtn.classList.add('playing');
     playInterval = window.setInterval(() => {
         currentFrame++;
@@ -1731,7 +1730,7 @@ function syncUI(): void {
         } else if (selected.type === 'shape') {
             typeDisplay.textContent = '図形';
         } else if (selected.type === 'camera') {
-            typeDisplay.textContent = 'カメラ';  // ★ 追加
+            typeDisplay.textContent = 'カメラ'; 
         } else {
             typeDisplay.textContent = '-';
         }
@@ -1760,7 +1759,7 @@ function syncUI(): void {
         } else if (selected.type === 'camera') {
             textProperties.style.display = 'none';
             shapeProperties.style.display = 'none';
-            cameraProperties.style.display = '';  // ★ 表示
+            cameraProperties.style.display = '';  // 表示
             cameraRangeInput.value = String(selected.cameraRange || 10);
         }
 
@@ -1869,7 +1868,7 @@ function addClip(type: ClipType): void {
             y: 0,
             z: 0,
             rotation: 0,
-            cameraRange: 10,  // ★ デフォルト範囲10
+            cameraRange: 10,  // デフォルト範囲10
         };
     } else {
         // 未対応のタイプが来たときの安全処理
@@ -1917,8 +1916,8 @@ function updateSelected(): void {
         shapeWidthNumber.value = String(selected.width);
         shapeHeightNumber.value = String(selected.height);
         
-    } else if (selected.type === 'camera') {  // ★ 追加
-        // ★ cameraRange を更新
+    } else if (selected.type === 'camera') {
+        // cameraRange を更新
         selected.cameraRange = parseInt(cameraRangeInput.value, 10) || 10;
     }
 
@@ -2161,7 +2160,7 @@ function setupAllNumberInputs(): void {
         // ===== Camera Range =====
         {
             input: cameraRangeInput,
-            slider: cameraRangeInput,  // ★ スライダーがないから同じ input を指定
+            slider: cameraRangeInput,  // スライダーがないから同じ input を指定
             config: {
                 min: 1,
                 max: 98,
@@ -2175,8 +2174,8 @@ function setupAllNumberInputs(): void {
                 if (!selected || selected.type !== 'camera') return;
                 selected.cameraRange = val;
                 cameraRangeInput.value = String(val);
-                drawPreview();  // ★ 追加！Range変更時にプレビューを更新
-                drawTimeline(); // ★ タイムラインも更新
+                drawPreview(); 
+                drawTimeline(); 
             }
         }
     ];
@@ -2336,19 +2335,19 @@ fpsSelect.addEventListener('change', () => {
 setupSettingsTabs();
 
 //-------- クリップ追加ボタン --------
-// テキスト追加ボタン
+// テキスト
 const addTextBtn = document.getElementById('addTextBtn') as HTMLButtonElement;
 addTextBtn.addEventListener('click', () => {
     addClip('text');
 });
 
-// 図形追加ボタン
+// 図形
 const addShapeBtn = document.getElementById('addShapeBtn') as HTMLButtonElement;
 addShapeBtn.addEventListener('click', () => {
     addClip('shape');
 });
 
-// ★ 追加: カメラ追加ボタン
+// カメラ
 const addCameraBtn = document.getElementById('addCameraBtn') as HTMLButtonElement;
 if (addCameraBtn) {
     addCameraBtn.addEventListener('click', () => {
@@ -2501,31 +2500,31 @@ function setBackgroundColor(color: string): void {
 // プロジェクト保存
 function saveProject(): void {
     try {
-        // ★ デフォルトのファイル名を生成（日付入り）
+        // デフォルトのファイル名を生成（日付入り）
         const defaultFileName = `project-${new Date().toISOString().slice(0, 10)}`;
 
-        // ★ 現在のプロジェクト名をデフォルト値として表示
+        // 現在のプロジェクト名をデフォルト値として表示
         const defaultName = currentProjectName !== '未命名' ? currentProjectName : defaultFileName;
 
-        // ★ プロンプトでファイル名を入力させる
+        // プロンプトでファイル名を入力させる
         const inputName = prompt('ファイル名を入力してください（.ajpは自動で付与されます）', defaultName);
         if (inputName === null) {
             // キャンセルされたら何もしない
             return;
         }
 
-        // ★ 入力された名前を整形（空文字ならデフォルトに戻す）
+        // 入力された名前を整形（空文字ならデフォルトに戻す）
         let safeName = inputName.trim() || defaultFileName;
 
-        // ★ 禁止文字を除去（\ / : * ? " < > |）
+        // 禁止文字を除去（\ / : * ? " < > |）
         safeName = safeName.replace(/[\\/:*?"<>|]/g, '');
 
-        // ★ プロジェクト名を更新
+        // プロジェクト名を更新
         currentProjectName = safeName;
 
         const projectData = {
             version: '1.0',
-            projectName: safeName,  // ★ 追加
+            projectName: safeName, 
             clips: clips,
             config: {
                 preventOverlap: CONFIG.preventOverlap,
@@ -2546,7 +2545,7 @@ function saveProject(): void {
 
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${safeName}.ajp`;  // ★ 入力されたファイル名で保存
+        a.download = `${safeName}.ajp`;  // 入力されたファイル名で保存
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -2577,7 +2576,7 @@ function loadProject(file: File): void {
             // クリップデータを復元（IDカウンターはリセットしない）
             clips = data.clips || [];
 
-            // ★ プロジェクト名を復元
+            // プロジェクト名を復元
             if (data.projectName) {
                 currentProjectName = data.projectName;
             } else {
@@ -2639,13 +2638,13 @@ function loadProject(file: File): void {
 }
 
 // プロジェクト保存/読み込みのイベント
-// ★ モーダル用DOM取得
+// モーダル用DOM取得
 const saveProjectModal = document.getElementById('saveProjectModal') as HTMLDivElement;
 const saveProjectNameInput = document.getElementById('saveProjectNameInput') as HTMLInputElement;
 const saveProjectConfirmBtn = document.getElementById('saveProjectConfirmBtn') as HTMLButtonElement;
 const saveProjectCancelBtn = document.getElementById('saveProjectCancelBtn') as HTMLButtonElement;
 
-// ★ モーダルを開く
+// モーダルを開く
 function openSaveProjectModal(): void {
     const defaultName = currentProjectName !== '無題' ? currentProjectName : `project-${new Date().toISOString().slice(0, 10)}`;
     saveProjectNameInput.value = defaultName;
@@ -2653,12 +2652,12 @@ function openSaveProjectModal(): void {
     saveProjectModal.classList.add('active');
 }
 
-// ★ モーダルを閉じる
+// モーダルを閉じる
 function closeSaveProjectModal(): void {
     saveProjectModal.classList.remove('active');
 }
 
-// ★ 保存実行（モーダルから呼ばれる）
+// 保存実行（モーダルから呼ばれる）
 function confirmSaveProject(): void {
     let name = saveProjectNameInput.value.trim() || `project-${new Date().toISOString().slice(0, 10)}`;
     name = name.replace(/[\\/:*?"<>|]/g, '');
@@ -2670,7 +2669,7 @@ function confirmSaveProject(): void {
     executeSaveProject(name);
 }
 
-// ★ 実際の保存処理
+// 実際の保存処理
 function executeSaveProject(fileName: string): void {
     try {
         const projectData = {
@@ -2709,7 +2708,7 @@ function executeSaveProject(fileName: string): void {
     }
 }
 
-// ★ イベント登録
+// イベント登録
 if (saveProjectConfirmBtn) {
     saveProjectConfirmBtn.addEventListener('click', confirmSaveProject);
 }
@@ -2739,7 +2738,7 @@ const loadBtn = document.getElementById('loadProjectBtn') as HTMLButtonElement;
 const loadInput = document.getElementById('loadProjectInput') as HTMLInputElement;
 
 if (saveBtn) {
-    saveBtn.addEventListener('click', openSaveProjectModal);  // ★ 変更！
+    saveBtn.addEventListener('click', openSaveProjectModal); 
 }
 
 if (loadBtn && loadInput) {
@@ -2821,7 +2820,7 @@ timelineContainer.addEventListener('wheel', (e) => {
         // Altキーを押しながらホイール → 縦スクロール
         e.preventDefault();
         const scrollAmount = e.deltaY * 0.3; // スクロール速度
-        timelineContainer.scrollTop += scrollAmount;  // ← timelineContainerに変更！
+        timelineContainer.scrollTop += scrollAmount;
     } else {
         // 通常時のホイール → 横スクロール
         e.preventDefault();
